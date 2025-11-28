@@ -25,21 +25,23 @@ st.markdown("""
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
+    /* Force icons (Hamburger, Deploy, Github) to be BRIGHT SILVER/WHITE */
     header[data-testid="stHeader"] button, 
     header[data-testid="stHeader"] svg, 
     header[data-testid="stHeader"] a,
     div[data-testid="stToolbar"] button,
     div[data-testid="stToolbar"] svg,
     button[kind="header"] {
-        color: #e5e7eb !important;
-        fill: #e5e7eb !important;
+        color: #f8fafc !important; /* Bright Silver/White */
+        fill: #f8fafc !important;
     }
     
+    /* Specific target for the Sidebar Collapse/Expand button on top left */
     section[data-testid="stSidebar"] button,
     div[data-testid="collapsedControl"] button,
     div[data-testid="collapsedControl"] svg {
-        color: #e5e7eb !important;
-        fill: #e5e7eb !important;
+        color: #f8fafc !important;
+        fill: #f8fafc !important;
     }
     
     div[data-testid="stDecoration"] { visibility: hidden; }
@@ -123,11 +125,13 @@ st.markdown("""
         color: white !important;
     }
     
-    /* VERTICAL DIVIDER LINE */
+    /* VERTICAL DIVIDER LINE - UPDATED VISIBILITY */
     .vertical-divider {
-        border-left: 2px solid rgba(255,255,255,0.2);
+        border-left: 2px solid #9ca3af; /* Solid visible silver color */
         height: 100%;
+        min-height: 400px; /* Ensure it has height even if empty */
         margin: auto;
+        opacity: 0.7;
     }
     
     .block-container { padding-top: 1rem; padding-bottom: 5rem; }
