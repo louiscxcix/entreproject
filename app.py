@@ -20,24 +20,21 @@ st.markdown("""
     }
     
     /* --- INTEGRATED TOP BAR --- */
-    /* Match the top header bar to the app background */
     header[data-testid="stHeader"] {
         background-color: #053371 !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Subtle separator */
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
-    /* Force icons (Hamburger, Deploy, Github, Toolbar) to be SILVER */
     header[data-testid="stHeader"] button, 
     header[data-testid="stHeader"] svg, 
     header[data-testid="stHeader"] a,
     div[data-testid="stToolbar"] button,
     div[data-testid="stToolbar"] svg,
     button[kind="header"] {
-        color: #e5e7eb !important; /* Silver color */
+        color: #e5e7eb !important;
         fill: #e5e7eb !important;
     }
     
-    /* Specific target for the Sidebar Collapse/Expand button */
     section[data-testid="stSidebar"] button,
     div[data-testid="collapsedControl"] button,
     div[data-testid="collapsedControl"] svg {
@@ -45,23 +42,19 @@ st.markdown("""
         fill: #e5e7eb !important;
     }
     
-    /* Hide the default multi-colored decoration line at the top */
-    div[data-testid="stDecoration"] {
-        visibility: hidden;
-    }
-    /* -------------------------- */
-    
+    div[data-testid="stDecoration"] { visibility: hidden; }
+
     /* HEADER BANNER STYLE */
     .header-banner {
-        background-color: #022c5e; /* Darker blue for separation */
+        background-color: #022c5e;
         padding: 2rem;
         border-radius: 12px;
         margin-bottom: 2rem;
-        border-left: 6px solid #3b82f6; /* Accent border */
+        border-left: 6px solid #3b82f6;
         box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
     }
     
-    /* Global Text - White by default for Blue background */
+    /* Global Text */
     h1, h2, h3, h4, p, span, div, label {
         color: #ffffff;
     }
@@ -72,23 +65,21 @@ st.markdown("""
         border-right: 1px solid #4b5563;
     }
     
-    /* SILVER BOXES (Targeting Streamlit Containers with Borders) */
+    /* SILVER BOXES */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%);
-        border: 2px solid #9ca3af !important; /* Thicker border for "Big Box" feel */
+        border: 2px solid #9ca3af !important;
         border-radius: 16px;
         box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.2);
-        padding: 1.5rem; /* Increased padding */
+        padding: 1.5rem;
     }
     
     /* FORCE DARK TEXT INSIDE SILVER BOXES */
     div[data-testid="stVerticalBlockBorderWrapper"] * {
         color: #1f2937 !important;
     }
-    
-    /* EXCEPTIONS: Success/Error messages inside Silver Boxes need their own colors */
     div[data-testid="stVerticalBlockBorderWrapper"] .stAlert * {
-        color: inherit !important; /* Let alert text color stick */
+        color: inherit !important;
     }
 
     /* INPUT FIELDS */
@@ -98,26 +89,32 @@ st.markdown("""
         border: 1px solid #d1d5db;
     }
     
-    /* BUTTONS - Silver/Metallic Style */
-    .stButton > button {
-        background: linear-gradient(to bottom, #ffffff, #e5e7eb);
-        color: #000000 !important; /* Black text */
-        font-weight: 800;
-        border: 1px solid #9ca3af;
-        border-radius: 8px;
+    /* BUTTONS - AGGRESSIVE OVERRIDE FOR BLACK TEXT */
+    div.stButton > button {
+        background: linear-gradient(to bottom, #ffffff, #e5e7eb) !important;
+        color: #000000 !important;
+        font-weight: 800 !important;
+        border: 1px solid #9ca3af !important;
+        border-radius: 8px !important;
         transition: all 0.2s;
         box-shadow: 0 2px 4px rgba(0,0,0,0.1);
     }
-    .stButton > button:hover {
+    div.stButton > button p {
+        color: #000000 !important;
+    }
+    div.stButton > button:hover {
         transform: translateY(-2px);
         box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        border-color: #ffffff;
+        border-color: #ffffff !important;
         color: #000000 !important;
     }
-    .stButton > button:active, .stButton > button:focus {
+    div.stButton > button:hover p { color: #000000 !important; }
+    div.stButton > button:active, div.stButton > button:focus {
         color: #000000 !important;
-        border-color: #9ca3af;
+        border-color: #9ca3af !important;
+        background: #d1d5db !important;
     }
+    div.stButton > button:active p, div.stButton > button:focus p { color: #000000 !important; }
     
     /* CHAT BUBBLES */
     .stChatMessage {
@@ -126,11 +123,14 @@ st.markdown("""
         color: white !important;
     }
     
-    /* Remove top padding for compact look */
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 5rem;
+    /* VERTICAL DIVIDER LINE */
+    .vertical-divider {
+        border-left: 2px solid rgba(255,255,255,0.2);
+        height: 100%;
+        margin: auto;
     }
+    
+    .block-container { padding-top: 1rem; padding-bottom: 5rem; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -189,7 +189,7 @@ with st.sidebar:
     if not api_key:
         st.warning("Enter Key to Start")
 
-# --- 6. CORE LOGIC ---
+# --- 6. CORE LOGIC (UPDATED FOR BREVITY) ---
 
 def fetch_external_intelligence(api_key):
     if not api_key: return st.error("Missing API Key")
@@ -200,7 +200,8 @@ def fetch_external_intelligence(api_key):
     - EVENTS: Heavy Rain tonight. Corporate event Casa Fuster (20:00).
     - COMPETITORS: "La Taqueria" fully booked.
     - TRENDS: High search "Comfort food delivery" & "Spicy".
-    TASK: 5-point 'External Reality Report' with Emojis. Link trends to specific menu items.
+    TASK: Write a ULTRA-CONCISE Flash Summary (Max 3 bullet points, <50 words total).
+    Focus only on the most critical event/trend impacting business tonight.
     """
     try:
         genai.configure(api_key=api_key)
@@ -218,7 +219,8 @@ def analyze_internal_data(api_key, df):
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU: {RESTAURANT_PROFILE['menu_items']}
     INPUT DATA: {csv_text[:15000]}
-    TASK: Health Check. 1. Star Performers, 2. Dead Weight, 3. Peak Times, 4. Financial Health.
+    TASK: Write a ULTRA-CONCISE Health Snapshot (Max 3 bullet points, <50 words total).
+    Identify only the #1 Star Performer and #1 Dead Weight.
     """
     try:
         genai.configure(api_key=api_key)
@@ -237,7 +239,7 @@ def run_strategic_analysis(api_key):
     CONTEXT 1 (External): {st.session_state.external_report}
     CONTEXT 2 (Internal): {st.session_state.internal_report}
     TASK: 4-point Decision Plan (Money Move, Shield, Menu Pivot, Marketing Hook).
-    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas").
+    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas"). Keep it concise and actionable.
     """
     try:
         genai.configure(api_key=api_key)
@@ -277,12 +279,12 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# SPLIT LAYOUT (Responsive Columns)
-col_left, col_right = st.columns([1, 1], gap="large")
+# SPLIT LAYOUT (3 Columns: Left | Divider | Right)
+# Width ratios: 48% Left, 4% Gap, 48% Right
+col_left, col_sep, col_right = st.columns([12, 1, 12])
 
 # === LEFT BOX: EXTERNAL ===
 with col_left:
-    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 🌍 External Radar")
         st.caption("City Events, Weather, Competitors")
@@ -295,11 +297,14 @@ with col_left:
         if st.session_state.external_report:
             st.markdown(st.session_state.external_report)
         else:
-            st.info("System Ready. Click Scan to fetch live data.")
+            st.info("System Ready. Click Scan.")
+
+# === VISUAL DIVIDER ===
+with col_sep:
+    st.markdown('<div class="vertical-divider"></div>', unsafe_allow_html=True)
 
 # === RIGHT BOX: INTERNAL ===
 with col_right:
-    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 📊 Internal Audit")
         st.caption("Sales Logs, POS Data, Inventory")
