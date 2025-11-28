@@ -25,23 +25,26 @@ st.markdown("""
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
-    /* Force icons (Hamburger, Deploy, Github) to be BRIGHT SILVER/WHITE */
-    header[data-testid="stHeader"] button, 
-    header[data-testid="stHeader"] svg, 
-    header[data-testid="stHeader"] a,
-    div[data-testid="stToolbar"] button,
-    div[data-testid="stToolbar"] svg,
-    button[kind="header"] {
-        color: #f8fafc !important; /* Bright Silver/White */
-        fill: #f8fafc !important;
+    /* AGGRESSIVE OVERRIDE FOR TOP BAR ICONS (GitHub, Menu, etc.) */
+    header[data-testid="stHeader"] * {
+        color: #e5e7eb !important; /* Silver text/icon base */
     }
     
-    /* Specific target for the Sidebar Collapse/Expand button on top left */
-    section[data-testid="stSidebar"] button,
-    div[data-testid="collapsedControl"] button,
-    div[data-testid="collapsedControl"] svg {
-        color: #f8fafc !important;
-        fill: #f8fafc !important;
+    /* Force SVG fills to be Silver */
+    header[data-testid="stHeader"] svg,
+    header[data-testid="stHeader"] svg path,
+    div[data-testid="stToolbar"] svg,
+    div[data-testid="stToolbar"] svg path {
+        fill: #e5e7eb !important;
+    }
+    
+    /* Top Left Sidebar Toggle Button */
+    div[data-testid="collapsedControl"] {
+        color: #e5e7eb !important;
+    }
+    div[data-testid="collapsedControl"] svg, 
+    div[data-testid="collapsedControl"] svg path {
+        fill: #e5e7eb !important;
     }
     
     div[data-testid="stDecoration"] { visibility: hidden; }
@@ -289,6 +292,7 @@ col_left, col_sep, col_right = st.columns([12, 1, 12])
 
 # === LEFT BOX: EXTERNAL ===
 with col_left:
+    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 🌍 External Radar")
         st.caption("City Events, Weather, Competitors")
@@ -309,6 +313,7 @@ with col_sep:
 
 # === RIGHT BOX: INTERNAL ===
 with col_right:
+    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 📊 Internal Audit")
         st.caption("Sales Logs, POS Data, Inventory")
