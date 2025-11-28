@@ -2,6 +2,8 @@ import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import time
+import random
+from datetime import datetime
 
 # --- 1. Page Config ---
 st.set_page_config(
@@ -111,6 +113,12 @@ st.markdown("""
         color: #000000 !important;
     }
     div.stButton > button:hover p { color: #000000 !important; }
+    div.stButton > button:active, div.stButton > button:focus {
+        color: #000000 !important;
+        border-color: #9ca3af !important;
+        background: #d1d5db !important;
+    }
+    div.stButton > button:active p, div.stButton > button:focus p { color: #000000 !important; }
     
     /* CHAT BUBBLES */
     .stChatMessage {
@@ -187,67 +195,73 @@ with st.sidebar:
 
 # --- 6. CORE LOGIC ---
 
+# Cache External Data Scan for 10 minutes (600 seconds)
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_external_intelligence(api_key):
-    if not api_key: return st.error("Missing API Key")
+    # Simulated Dynamic Data elements that change when cache expires
+    current_time = datetime.now().strftime("%H:%M")
+    traffic_load = random.randint(75, 98)
+    search_vol = random.randint(200, 500)
+    
     prompt = f"""
     ROLE: Intelligence Officer for {RESTAURANT_PROFILE['name']} in Barcelona.
     MENU: {RESTAURANT_PROFILE['menu_items']}
-    RAW DATA (Simulated Còrsega 376):
+    
+    LIVE DATA FEED (Updated {current_time}):
     - EVENTS: Heavy Rain tonight. Corporate event Casa Fuster (20:00).
     - COMPETITORS: "La Taqueria" fully booked.
-    - TRENDS: High search "Comfort food delivery" & "Spicy".
+    - TRAFFIC: Còrsega St congestion is at {traffic_load}%. 
+    - TRENDS: {search_vol} local searches for "Comfort food delivery" in last hour.
     
     TASK: 
-    1. Calculate an 'Opportunity Score' (0-100) for tonight. Just the number.
+    1. Calculate an 'Opportunity Score' (0-100) for tonight based on this live feed. Just the number.
     2. Write a 'Strategic Intelligence Briefing'.
        CONSTRAINT: Max 150 words total.
        FORMAT: Use emojis and bold text for key insights.
        - **Radar**: Summary of weather/events.
-       - **Impact**: Why it matters (e.g., "Rain + Event = **High Delivery Demand**").
+       - **Impact**: Why it matters (e.g., "Rain + Traffic {traffic_load}% = **High Delivery Demand**").
        - **Action**: One quick recommendation.
     """
+    
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
-        with st.spinner("📡 Scanning city sensors..."):
-            response = model.generate_content(prompt)
-            st.session_state.external_report = response.text
-            st.session_state.opp_score = 85 # Simulated for demo
+        response = model.generate_content(prompt)
+        # Return tuple (Report Text, Simulated Score based on random traffic)
+        return response.text, traffic_load 
     except Exception as e:
-        st.error(f"Error: {e}")
+        return f"Error: {e}", 0
 
 def analyze_internal_data(api_key, df):
-    if not api_key: return st.error("Missing API Key")
+    if not api_key: return "Missing API Key"
     csv_text = df.to_csv(index=False)
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU: {RESTAURANT_PROFILE['menu_items']}
     INPUT DATA: {csv_text[:15000]}
     
-    TASK: Perform a 'Menu Audit'.
-    CONSTRAINT: Max 150 words total.
-    FORMAT: Bullet points with **Bold Metrics**.
-    1. 🏆 **Star Performers**: Identify top items (margin/volume).
-    2. 📉 **Dead Weight**: Identify low performers.
-    3. ⏰ **Peak Times**: Staffing impact.
-    Keep it punchy and intuitive.
+    TASK: Perform a 'Deep Dive Menu Audit'.
+    1. Identify 'Star Performers' and explain WHY (margin/volume).
+    2. Identify 'Dead Weight' and suggest if we should kill it or promo it.
+    3. Analyze Peak Times vs Staffing needs.
+    Provide detailed, reasoned insights.
     """
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         with st.spinner("🔍 Auditing records..."):
             response = model.generate_content(prompt)
-            st.session_state.internal_report = response.text
+            return response.text
     except Exception as e:
-        st.error(f"Error: {e}")
+        return f"Error: {e}"
 
-def run_strategic_analysis(api_key):
-    if not api_key: return
+def run_strategic_analysis(api_key, external_data, internal_data):
+    if not api_key: return "Missing API Key"
     prompt = f"""
     ACT AS: Strategic Consultant for {RESTAURANT_PROFILE['name']}.
     MENU: {RESTAURANT_PROFILE['menu_items']}
-    CONTEXT 1 (External): {st.session_state.external_report}
-    CONTEXT 2 (Internal): {st.session_state.internal_report}
+    CONTEXT 1 (External): {external_data}
+    CONTEXT 2 (Internal): {internal_data}
     
     TASK: 4-point Decision Plan.
     CONSTRAINT: Max 200 words total.
@@ -256,16 +270,16 @@ def run_strategic_analysis(api_key):
     2. 🛡️ **Shield**: Operational defense.
     3. 🌮 **Menu Pivot**: Item focus.
     4. 📢 **Marketing Hook**: Exact social caption.
-    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas").
+    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas"). Provide specific execution steps.
     """
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         with st.spinner("🚀 Generating Strategy..."):
             response = model.generate_content(prompt)
-            st.session_state.analysis_result = response.text
+            return response.text
     except Exception as e:
-        st.error(f"Error: {e}")
+        return f"Error: {e}"
 
 def ask_executive_chat(api_key, question):
     if not api_key: return "Please enter API Key."
@@ -273,7 +287,7 @@ def ask_executive_chat(api_key, question):
     YOU ARE: Ops Director for {RESTAURANT_PROFILE['name']}.
     DATA: {st.session_state.analysis_result}
     USER QUESTION: "{question}"
-    TASK: Concise, evidence-based answer. Max 100 words. Use bolding for key steps.
+    TASK: Concise, evidence-based answer.
     """
     try:
         genai.configure(api_key=api_key)
@@ -301,8 +315,16 @@ with col_left:
         st.markdown("### 🌍 External Radar")
         st.caption("City Events, Weather, Competitors")
         
+        # When button is clicked, we fetch. 
+        # Caching logic inside function prevents API spam if clicked frequently.
         if st.button("🔄 Scan City Data", use_container_width=True):
-            fetch_external_intelligence(api_key)
+            if api_key:
+                with st.spinner("Scanning city sensors..."):
+                    report, score = fetch_external_intelligence(api_key)
+                    st.session_state.external_report = report
+                    st.session_state.opp_score = score
+            else:
+                st.error("Please enter API Key")
         
         st.markdown("---")
         
@@ -310,7 +332,7 @@ with col_left:
             # Visual: Opportunity Score
             st.markdown(f"**Business Opportunity Score:**")
             st.progress(st.session_state.opp_score / 100)
-            st.caption(f"Score: {st.session_state.opp_score}/100 (High Demand Predicted)")
+            st.caption(f"Score: {st.session_state.opp_score}/100 (Live Traffic: {st.session_state.opp_score}%)")
             st.markdown("---")
             st.markdown(st.session_state.external_report)
         else:
@@ -342,7 +364,8 @@ with col_right:
                 m2.metric("Total Orders", orders)
                 
                 if st.button("🔍 Scan Internal Data", use_container_width=True):
-                    analyze_internal_data(api_key, df)
+                    report = analyze_internal_data(api_key, df)
+                    st.session_state.internal_report = report
                 
                 # Visual: Simple Chart
                 if st.session_state.internal_report:
@@ -363,7 +386,8 @@ _, col_center, _ = st.columns([1, 2, 1])
 with col_center:
     ready = st.session_state.external_report and st.session_state.internal_report and api_key
     if st.button("⚡ GENERATE UNIFIED STRATEGY", type="primary", disabled=not ready, use_container_width=True):
-        run_strategic_analysis(api_key)
+        result = run_strategic_analysis(api_key, st.session_state.external_report, st.session_state.internal_report)
+        st.session_state.analysis_result = result
 
 # === RESULTS ===
 if st.session_state.analysis_result:
