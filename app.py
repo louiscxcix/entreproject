@@ -199,9 +199,12 @@ def fetch_external_intelligence(api_key):
     
     TASK: 
     1. Calculate an 'Opportunity Score' (0-100) for tonight. Just the number.
-    2. Write a 'Strategic Intelligence Briefing'. Use formatting, bold text, and lists.
-       Explain WHY the events impact us (e.g., "Rain + Corp Event = Delivery Spike").
-       Provide context, not just bullet points.
+    2. Write a 'Strategic Intelligence Briefing'.
+       CONSTRAINT: Max 150 words total.
+       FORMAT: Use emojis and bold text for key insights.
+       - **Radar**: Summary of weather/events.
+       - **Impact**: Why it matters (e.g., "Rain + Event = **High Delivery Demand**").
+       - **Action**: One quick recommendation.
     """
     try:
         genai.configure(api_key=api_key)
@@ -221,11 +224,13 @@ def analyze_internal_data(api_key, df):
     MENU: {RESTAURANT_PROFILE['menu_items']}
     INPUT DATA: {csv_text[:15000]}
     
-    TASK: Perform a 'Deep Dive Menu Audit'.
-    1. Identify 'Star Performers' and explain WHY (margin/volume).
-    2. Identify 'Dead Weight' and suggest if we should kill it or promo it.
-    3. Analyze Peak Times vs Staffing needs.
-    Provide detailed, reasoned insights.
+    TASK: Perform a 'Menu Audit'.
+    CONSTRAINT: Max 150 words total.
+    FORMAT: Bullet points with **Bold Metrics**.
+    1. 🏆 **Star Performers**: Identify top items (margin/volume).
+    2. 📉 **Dead Weight**: Identify low performers.
+    3. ⏰ **Peak Times**: Staffing impact.
+    Keep it punchy and intuitive.
     """
     try:
         genai.configure(api_key=api_key)
@@ -243,8 +248,15 @@ def run_strategic_analysis(api_key):
     MENU: {RESTAURANT_PROFILE['menu_items']}
     CONTEXT 1 (External): {st.session_state.external_report}
     CONTEXT 2 (Internal): {st.session_state.internal_report}
-    TASK: 4-point Decision Plan (Money Move, Shield, Menu Pivot, Marketing Hook).
-    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas"). Provide specific execution steps.
+    
+    TASK: 4-point Decision Plan.
+    CONSTRAINT: Max 200 words total.
+    FORMAT: Use emojis and **Bold** for the core decision.
+    1. 💰 **Money Move**: Revenue strategy.
+    2. 🛡️ **Shield**: Operational defense.
+    3. 🌮 **Menu Pivot**: Item focus.
+    4. 📢 **Marketing Hook**: Exact social caption.
+    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas").
     """
     try:
         genai.configure(api_key=api_key)
@@ -261,7 +273,7 @@ def ask_executive_chat(api_key, question):
     YOU ARE: Ops Director for {RESTAURANT_PROFILE['name']}.
     DATA: {st.session_state.analysis_result}
     USER QUESTION: "{question}"
-    TASK: Concise, evidence-based answer.
+    TASK: Concise, evidence-based answer. Max 100 words. Use bolding for key steps.
     """
     try:
         genai.configure(api_key=api_key)
