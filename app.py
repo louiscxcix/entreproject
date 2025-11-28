@@ -26,12 +26,23 @@ st.markdown("""
         border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Subtle separator */
     }
     
-    /* Force icons (Hamburger, Deploy, Github) to be white */
+    /* Force icons (Hamburger, Deploy, Github, Toolbar) to be SILVER */
     header[data-testid="stHeader"] button, 
     header[data-testid="stHeader"] svg, 
-    header[data-testid="stHeader"] a {
-        color: #ffffff !important;
-        fill: #ffffff !important;
+    header[data-testid="stHeader"] a,
+    div[data-testid="stToolbar"] button,
+    div[data-testid="stToolbar"] svg,
+    button[kind="header"] {
+        color: #e5e7eb !important; /* Silver color */
+        fill: #e5e7eb !important;
+    }
+    
+    /* Specific target for the Sidebar Collapse/Expand button */
+    section[data-testid="stSidebar"] button,
+    div[data-testid="collapsedControl"] button,
+    div[data-testid="collapsedControl"] svg {
+        color: #e5e7eb !important;
+        fill: #e5e7eb !important;
     }
     
     /* Hide the default multi-colored decoration line at the top */
@@ -90,7 +101,7 @@ st.markdown("""
     /* BUTTONS - Silver/Metallic Style */
     .stButton > button {
         background: linear-gradient(to bottom, #ffffff, #e5e7eb);
-        color: #000000 !important; /* CHANGED: Black text as requested */
+        color: #000000 !important; /* Black text */
         font-weight: 800;
         border: 1px solid #9ca3af;
         border-radius: 8px;
@@ -101,6 +112,11 @@ st.markdown("""
         transform: translateY(-2px);
         box-shadow: 0 4px 6px rgba(0,0,0,0.2);
         border-color: #ffffff;
+        color: #000000 !important;
+    }
+    .stButton > button:active, .stButton > button:focus {
+        color: #000000 !important;
+        border-color: #9ca3af;
     }
     
     /* CHAT BUBBLES */
