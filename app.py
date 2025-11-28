@@ -8,7 +8,7 @@ st.set_page_config(
     page_title="BarnaInsights: Pikio Taco",
     page_icon="🌮",
     layout="wide",
-    initial_sidebar_state="expanded"
+    initial_sidebar_state="collapsed"
 )
 
 # --- 2. THEME & CSS ---
@@ -17,6 +17,37 @@ st.markdown("""
     /* GLOBAL SETTINGS */
     .stApp {
         background-color: #053371;
+    }
+    
+    /* --- INTEGRATED TOP BAR --- */
+    /* Match the top header bar to the app background */
+    header[data-testid="stHeader"] {
+        background-color: #053371 !important;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.1); /* Subtle separator */
+    }
+    
+    /* Force icons (Hamburger, Deploy, Github) to be white */
+    header[data-testid="stHeader"] button, 
+    header[data-testid="stHeader"] svg, 
+    header[data-testid="stHeader"] a {
+        color: #ffffff !important;
+        fill: #ffffff !important;
+    }
+    
+    /* Hide the default multi-colored decoration line at the top */
+    div[data-testid="stDecoration"] {
+        visibility: hidden;
+    }
+    /* -------------------------- */
+    
+    /* HEADER BANNER STYLE */
+    .header-banner {
+        background-color: #022c5e; /* Darker blue for separation */
+        padding: 2rem;
+        border-radius: 12px;
+        margin-bottom: 2rem;
+        border-left: 6px solid #3b82f6; /* Accent border */
+        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
     }
     
     /* Global Text - White by default for Blue background */
@@ -33,10 +64,10 @@ st.markdown("""
     /* SILVER BOXES (Targeting Streamlit Containers with Borders) */
     div[data-testid="stVerticalBlockBorderWrapper"] {
         background: linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%);
-        border: 1px solid #9ca3af !important;
-        border-radius: 12px;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
-        padding: 1rem;
+        border: 2px solid #9ca3af !important; /* Thicker border for "Big Box" feel */
+        border-radius: 16px;
+        box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.2);
+        padding: 1.5rem; /* Increased padding */
     }
     
     /* FORCE DARK TEXT INSIDE SILVER BOXES */
@@ -59,7 +90,7 @@ st.markdown("""
     /* BUTTONS - Silver/Metallic Style */
     .stButton > button {
         background: linear-gradient(to bottom, #ffffff, #e5e7eb);
-        color: #053371 !important;
+        color: #000000 !important; /* CHANGED: Black text as requested */
         font-weight: 800;
         border: 1px solid #9ca3af;
         border-radius: 8px;
@@ -81,7 +112,7 @@ st.markdown("""
     
     /* Remove top padding for compact look */
     .block-container {
-        padding-top: 2rem;
+        padding-top: 1rem;
         padding-bottom: 5rem;
     }
     </style>
@@ -222,16 +253,20 @@ def ask_executive_chat(api_key, question):
 
 # --- 7. MAIN UI LAYOUT ---
 
-st.title(f"🌮 BarnaInsights: {RESTAURANT_PROFILE['name']}")
-st.markdown(f"<h4 style='color:#cbd5e1;'>Real-time Intelligence for {RESTAURANT_PROFILE['address']}</h4>", unsafe_allow_html=True)
-st.write("") # Spacer
+# HEADER SECTION
+st.markdown(f"""
+<div class="header-banner">
+    <h1 style="margin:0; padding-bottom:10px;">🌮 BarnaInsights: {RESTAURANT_PROFILE['name']}</h1>
+    <p style="font-size: 1.1rem; color: #cbd5e1; margin:0;">Real-time Intelligence for {RESTAURANT_PROFILE['address']}</p>
+</div>
+""", unsafe_allow_html=True)
 
 # SPLIT LAYOUT (Responsive Columns)
 col_left, col_right = st.columns([1, 1], gap="large")
 
 # === LEFT BOX: EXTERNAL ===
 with col_left:
-    # Use st.container(border=True) for the "Silver Box" look
+    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 🌍 External Radar")
         st.caption("City Events, Weather, Competitors")
@@ -248,6 +283,7 @@ with col_left:
 
 # === RIGHT BOX: INTERNAL ===
 with col_right:
+    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 📊 Internal Audit")
         st.caption("Sales Logs, POS Data, Inventory")
@@ -273,7 +309,7 @@ with col_right:
             st.markdown("*Upload data to uncover Top Sellers.*")
 
 # === MERGE STRATEGY ===
-st.markdown("---")
+st.write("") # Spacer
 _, col_center, _ = st.columns([1, 2, 1])
 with col_center:
     ready = st.session_state.external_report and st.session_state.internal_report and api_key
