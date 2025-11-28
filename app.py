@@ -25,25 +25,22 @@ st.markdown("""
         border-bottom: 1px solid rgba(255, 255, 255, 0.1);
     }
     
-    /* AGGRESSIVE OVERRIDE FOR TOP BAR ICONS (GitHub, Menu, etc.) */
-    header[data-testid="stHeader"] * {
-        color: #e5e7eb !important; /* Silver text/icon base */
-    }
-    
-    /* Force SVG fills to be Silver */
-    header[data-testid="stHeader"] svg,
-    header[data-testid="stHeader"] svg path,
+    /* Force icons (Hamburger, Deploy, Github) to be BRIGHT SILVER/WHITE */
+    header[data-testid="stHeader"] button, 
+    header[data-testid="stHeader"] svg, 
+    header[data-testid="stHeader"] a,
+    div[data-testid="stToolbar"] button,
     div[data-testid="stToolbar"] svg,
-    div[data-testid="stToolbar"] svg path {
+    button[kind="header"] {
+        color: #e5e7eb !important;
         fill: #e5e7eb !important;
     }
     
-    /* Top Left Sidebar Toggle Button */
-    div[data-testid="collapsedControl"] {
+    /* Sidebar Toggle Button */
+    section[data-testid="stSidebar"] button,
+    div[data-testid="collapsedControl"] button,
+    div[data-testid="collapsedControl"] svg {
         color: #e5e7eb !important;
-    }
-    div[data-testid="collapsedControl"] svg, 
-    div[data-testid="collapsedControl"] svg path {
         fill: #e5e7eb !important;
     }
     
@@ -114,12 +111,6 @@ st.markdown("""
         color: #000000 !important;
     }
     div.stButton > button:hover p { color: #000000 !important; }
-    div.stButton > button:active, div.stButton > button:focus {
-        color: #000000 !important;
-        border-color: #9ca3af !important;
-        background: #d1d5db !important;
-    }
-    div.stButton > button:active p, div.stButton > button:focus p { color: #000000 !important; }
     
     /* CHAT BUBBLES */
     .stChatMessage {
@@ -128,11 +119,11 @@ st.markdown("""
         color: white !important;
     }
     
-    /* VERTICAL DIVIDER LINE - UPDATED VISIBILITY */
+    /* VERTICAL DIVIDER */
     .vertical-divider {
-        border-left: 2px solid #9ca3af; /* Solid visible silver color */
+        border-left: 2px solid #9ca3af;
         height: 100%;
-        min-height: 400px; /* Ensure it has height even if empty */
+        min-height: 400px;
         margin: auto;
         opacity: 0.7;
     }
@@ -175,6 +166,7 @@ if 'external_report' not in st.session_state: st.session_state.external_report =
 if 'internal_report' not in st.session_state: st.session_state.internal_report = ""
 if 'analysis_result' not in st.session_state: st.session_state.analysis_result = ""
 if 'chat_history' not in st.session_state: st.session_state.chat_history = [] 
+if 'opp_score' not in st.session_state: st.session_state.opp_score = 0
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
@@ -183,20 +175,17 @@ with st.sidebar:
     st.markdown("---")
     st.subheader(f"🌮 {RESTAURANT_PROFILE['name']}")
     st.caption(RESTAURANT_PROFILE['address'])
-    
     col_a, col_b = st.columns(2)
     with col_a: st.metric("Rating", RESTAURANT_PROFILE['rating'])
     with col_b: st.caption(f"**Zone:**\n{RESTAURANT_PROFILE['neighborhood']}")
     
     with st.expander("📖 View Menu Data"):
         st.text(RESTAURANT_PROFILE["menu_items"])
-        
     st.markdown("---")
     api_key = st.text_input("🔑 Gemini API Key", type="password")
-    if not api_key:
-        st.warning("Enter Key to Start")
+    if not api_key: st.warning("Enter Key to Start")
 
-# --- 6. CORE LOGIC (UPDATED FOR BREVITY) ---
+# --- 6. CORE LOGIC ---
 
 def fetch_external_intelligence(api_key):
     if not api_key: return st.error("Missing API Key")
@@ -207,8 +196,12 @@ def fetch_external_intelligence(api_key):
     - EVENTS: Heavy Rain tonight. Corporate event Casa Fuster (20:00).
     - COMPETITORS: "La Taqueria" fully booked.
     - TRENDS: High search "Comfort food delivery" & "Spicy".
-    TASK: Write a ULTRA-CONCISE Flash Summary (Max 3 bullet points, <50 words total).
-    Focus only on the most critical event/trend impacting business tonight.
+    
+    TASK: 
+    1. Calculate an 'Opportunity Score' (0-100) for tonight. Just the number.
+    2. Write a 'Strategic Intelligence Briefing'. Use formatting, bold text, and lists.
+       Explain WHY the events impact us (e.g., "Rain + Corp Event = Delivery Spike").
+       Provide context, not just bullet points.
     """
     try:
         genai.configure(api_key=api_key)
@@ -216,6 +209,7 @@ def fetch_external_intelligence(api_key):
         with st.spinner("📡 Scanning city sensors..."):
             response = model.generate_content(prompt)
             st.session_state.external_report = response.text
+            st.session_state.opp_score = 85 # Simulated for demo
     except Exception as e:
         st.error(f"Error: {e}")
 
@@ -226,8 +220,12 @@ def analyze_internal_data(api_key, df):
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU: {RESTAURANT_PROFILE['menu_items']}
     INPUT DATA: {csv_text[:15000]}
-    TASK: Write a ULTRA-CONCISE Health Snapshot (Max 3 bullet points, <50 words total).
-    Identify only the #1 Star Performer and #1 Dead Weight.
+    
+    TASK: Perform a 'Deep Dive Menu Audit'.
+    1. Identify 'Star Performers' and explain WHY (margin/volume).
+    2. Identify 'Dead Weight' and suggest if we should kill it or promo it.
+    3. Analyze Peak Times vs Staffing needs.
+    Provide detailed, reasoned insights.
     """
     try:
         genai.configure(api_key=api_key)
@@ -246,7 +244,7 @@ def run_strategic_analysis(api_key):
     CONTEXT 1 (External): {st.session_state.external_report}
     CONTEXT 2 (Internal): {st.session_state.internal_report}
     TASK: 4-point Decision Plan (Money Move, Shield, Menu Pivot, Marketing Hook).
-    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas"). Keep it concise and actionable.
+    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas"). Provide specific execution steps.
     """
     try:
         genai.configure(api_key=api_key)
@@ -261,13 +259,9 @@ def ask_executive_chat(api_key, question):
     if not api_key: return "Please enter API Key."
     prompt = f"""
     YOU ARE: Ops Director for {RESTAURANT_PROFILE['name']}.
-    MENU: {RESTAURANT_PROFILE['menu_items']}
-    DATA: 
-    1. External: {st.session_state.external_report}
-    2. Internal: {st.session_state.internal_report}
-    3. Strategy: {st.session_state.analysis_result}
+    DATA: {st.session_state.analysis_result}
     USER QUESTION: "{question}"
-    TASK: Concise, evidence-based answer. Be specific.
+    TASK: Concise, evidence-based answer.
     """
     try:
         genai.configure(api_key=api_key)
@@ -287,12 +281,10 @@ st.markdown(f"""
 """, unsafe_allow_html=True)
 
 # SPLIT LAYOUT (3 Columns: Left | Divider | Right)
-# Width ratios: 48% Left, 4% Gap, 48% Right
 col_left, col_sep, col_right = st.columns([12, 1, 12])
 
 # === LEFT BOX: EXTERNAL ===
 with col_left:
-    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 🌍 External Radar")
         st.caption("City Events, Weather, Competitors")
@@ -303,6 +295,11 @@ with col_left:
         st.markdown("---")
         
         if st.session_state.external_report:
+            # Visual: Opportunity Score
+            st.markdown(f"**Business Opportunity Score:**")
+            st.progress(st.session_state.opp_score / 100)
+            st.caption(f"Score: {st.session_state.opp_score}/100 (High Demand Predicted)")
+            st.markdown("---")
             st.markdown(st.session_state.external_report)
         else:
             st.info("System Ready. Click Scan.")
@@ -313,7 +310,6 @@ with col_sep:
 
 # === RIGHT BOX: INTERNAL ===
 with col_right:
-    # Everything inside this container gets the "Silver Box" style + border
     with st.container(border=True):
         st.markdown("### 📊 Internal Audit")
         st.caption("Sales Logs, POS Data, Inventory")
@@ -324,22 +320,33 @@ with col_right:
             try:
                 if uploaded_file.name.endswith('.csv'): df = pd.read_csv(uploaded_file)
                 else: df = pd.read_excel(uploaded_file)
-                st.success(f"✅ Loaded {len(df)} rows")
+                
+                # Visual: Key Metrics
+                total_rev = df['Total Revenue'].sum()
+                orders = df['Qty Sold'].sum()
+                
+                m1, m2 = st.columns(2)
+                m1.metric("Total Revenue", f"€{total_rev:,.2f}")
+                m2.metric("Total Orders", orders)
                 
                 if st.button("🔍 Scan Internal Data", use_container_width=True):
                     analyze_internal_data(api_key, df)
+                
+                # Visual: Simple Chart
+                if st.session_state.internal_report:
+                    st.markdown("---")
+                    st.caption("📈 Top 5 Best Sellers (Qty)")
+                    top_items = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False).head(5)
+                    st.bar_chart(top_items, color="#3b82f6")
+                    st.markdown("---")
+                    st.markdown(st.session_state.internal_report)
             except:
                 st.error("Invalid file format")
-        
-        st.markdown("---")
-        
-        if st.session_state.internal_report:
-            st.markdown(st.session_state.internal_report)
         else:
             st.markdown("*Upload data to uncover Top Sellers.*")
 
 # === MERGE STRATEGY ===
-st.write("") # Spacer
+st.write("") 
 _, col_center, _ = st.columns([1, 2, 1])
 with col_center:
     ready = st.session_state.external_report and st.session_state.internal_report and api_key
@@ -356,15 +363,12 @@ if st.session_state.analysis_result:
     # === EXECUTIVE CHAT ===
     st.write("")
     st.markdown("### 💬 Executive Chat")
-    
-    # Chat container
     chat_container = st.container(height=400, border=True)
     with chat_container:
         for msg in st.session_state.chat_history:
             with st.chat_message(msg["role"]):
                 st.markdown(msg["content"])
                 
-    # Input
     if q := st.chat_input("Ask Ops Director (e.g., 'How do I handle the delivery surge?')"):
         st.session_state.chat_history.append({"role": "user", "content": q})
         with chat_container:
