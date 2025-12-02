@@ -255,39 +255,74 @@ def fetch_external_intelligence(api_key):
         return f"Error: {str(e)}", 0
 
 def analyze_internal_data(api_key, df):
-    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
+    # FLEXIBLE COLUMN DETECTION (No Crash Guarantee)
+    item_col = None
+    qty_col = None
+    time_col = None
+    
+    # Normalize columns to lower case for search
+    cols_map = {c.lower().strip(): c for c in df.columns}
+    
+    # Heuristics for Item Name
+    for candidate in ['item name', 'item', 'product', 'dish', 'menu item', 'name', 'description']:
+        if candidate in cols_map:
+            item_col = cols_map[candidate]
+            break
+            
+    # Heuristics for Quantity
+    for candidate in ['qty sold', 'qty', 'quantity', 'sold', 'count', 'orders', 'amount']:
+        if candidate in cols_map:
+            qty_col = cols_map[candidate]
+            break
+            
+    # Heuristics for Time
+    for candidate in ['time', 'date', 'hour', 'timestamp']:
+        if candidate in cols_map:
+            time_col = cols_map[candidate]
+            break
+
     try:
-        # Group by item to find top/bottom
-        item_sales = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False)
-        
-        top_3 = item_sales.head(3).to_dict()
-        bottom_3 = item_sales.tail(3).to_dict()
-        total_items_sold = item_sales.sum()
-        
-        # Calculate Peak Hour if Time exists
-        peak_time = "N/A"
-        if 'Time' in df.columns:
-            peak_time = df['Time'].mode()[0]
-        
-        data_summary = f"""
-        REAL CALCULATED METRICS (DO NOT INVENT NUMBERS):
-        - Top 3 Best Sellers: {top_3}
-        - Bottom 3 Sales (Dead Weight): {bottom_3}
-        - Total Items Sold: {total_items_sold}
-        - Peak Time Slot: {peak_time}
-        """
+        if item_col and qty_col:
+            # Group by item to find top/bottom
+            item_sales = df.groupby(item_col)[qty_col].sum().sort_values(ascending=False)
+            
+            top_3 = item_sales.head(3).to_dict()
+            bottom_3 = item_sales.tail(3).to_dict()
+            total_items_sold = item_sales.sum()
+            
+            # Calculate Peak Hour if Time exists
+            peak_time = "N/A"
+            if time_col:
+                peak_time = df[time_col].mode()[0]
+            
+            data_summary = f"""
+            REAL CALCULATED METRICS (Based on columns '{item_col}' and '{qty_col}'):
+            - Top 3 Best Sellers: {top_3}
+            - Bottom 3 Sales (Dead Weight): {bottom_3}
+            - Total Items Sold: {total_items_sold}
+            - Peak Time Slot: {peak_time}
+            """
+        else:
+            data_summary = "Could not automatically detect Item/Quantity columns for calculation. Relying on AI text analysis."
         
     except Exception as e:
-        return f"Error calculating metrics: {str(e)}"
+        # Don't crash, just note the error for the AI context
+        data_summary = f"Automatic metric calculation failed ({str(e)}). Analyzing raw data sample instead."
+
+    # Convert to CSV string for the LLM
+    csv_text = df.head(50).to_csv(index=False)
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
     
-    INPUT DATA:
+    INPUT DATA SAMPLE:
+    {csv_text}
+    
+    PRE-CALCULATED METRICS:
     {data_summary}
     
-    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
+    TASK: Write a 'Menu Audit' based on the metrics (if available) OR the raw data sample.
     CONSTRAINT: Max 150 words.
     
     FORMAT:
