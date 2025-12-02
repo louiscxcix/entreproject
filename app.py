@@ -5,7 +5,7 @@ import time
 from datetime import datetime
 import random
 from fpdf import FPDF
-import json # ADDED for parsing structured response
+import json
 
 # --- 1. Page Configuration ---
 st.set_page_config(
@@ -180,7 +180,8 @@ if 'opp_score' not in st.session_state: st.session_state.opp_score = 0
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Configuration")
-    api_key = st.text_input("Gemini API Key", type="password")
+    # HARDCODED API KEY FOR BETA TESTING
+    api_key = "AIzaSyBs576jalSxcZPVQV49lvISU-JQffWWHk4"
     st.divider()
     st.subheader("📍 Profile")
     st.info(f"**{RESTAURANT_PROFILE['name']}**\n\n{RESTAURANT_PROFILE['address']}")
@@ -193,28 +194,38 @@ with st.sidebar:
 def create_pdf(report_text):
     class PDF(FPDF):
         def header(self):
-            self.set_font('Arial', 'B', 15)
-            self.cell(0, 10, f'Strategic Report: {RESTAURANT_PROFILE["name"]}', 0, 1, 'C')
-            self.ln(10)
+            # Professional Blue Header Bar
+            self.set_fill_color(30, 58, 138) 
+            self.rect(0, 0, 210, 30, 'F')
+            self.set_font('Arial', 'B', 16)
+            self.set_text_color(255, 255, 255)
+            self.cell(0, 10, f'BarnaInsights: {RESTAURANT_PROFILE["name"]}', 0, 1, 'L')
+            self.set_font('Arial', '', 10)
+            self.cell(0, 5, f'Strategic Analysis Report | {datetime.now().strftime("%Y-%m-%d")}', 0, 1, 'L')
+            self.ln(20)
             
         def footer(self):
             self.set_y(-15)
             self.set_font('Arial', 'I', 8)
-            self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+            self.set_text_color(100, 100, 100)
+            self.cell(0, 10, f'Confidential Internal Document - Page {self.page_no()}', 0, 0, 'C')
 
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=12)
+    pdf.set_font("Arial", size=11)
     
-    # Clean text: FPDF has trouble with unicode/emojis. We replace them or encode to latin-1
-    clean_text = report_text.encode('latin-1', 'replace').decode('latin-1')
+    # Text Cleaning for PDF Compatibility
+    clean_text = report_text.replace('**', '').replace('###', '').replace('#', '')
+    # Handle encoding
+    clean_text = clean_text.encode('latin-1', 'replace').decode('latin-1')
     
-    pdf.multi_cell(0, 10, txt=clean_text)
+    pdf.multi_cell(0, 6, txt=clean_text)
     return pdf.output(dest='S').encode('latin-1')
 
 @st.cache_data(ttl=600)
-def fetch_external_intelligence(api_key):
+def fetch_external_intelligence(_api_key):
     # FIXED: Direct generation ONLY. No tools to hang on.
+    # Note: _api_key argument has underscore to prevent hashing it for cache
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     
     prompt = f"""
@@ -242,7 +253,7 @@ def fetch_external_intelligence(api_key):
     """
     
     try:
-        genai.configure(api_key=api_key)
+        genai.configure(api_key=_api_key)
         # Use standard model without tools to ensure speed and stability
         model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025') 
         response = model.generate_content(prompt)
@@ -255,33 +266,18 @@ def fetch_external_intelligence(api_key):
         return f"Error: {str(e)}", 0
 
 def analyze_internal_data(api_key, df):
-    # FLEXIBLE COLUMN DETECTION (No Crash Guarantee)
-    item_col = None
-    qty_col = None
-    time_col = None
-    
-    # Normalize columns to lower case for search
-    cols_map = {c.lower().strip(): c for c in df.columns}
-    
-    # Heuristics for Item Name
-    for candidate in ['item name', 'item', 'product', 'dish', 'menu item', 'name', 'description']:
-        if candidate in cols_map:
-            item_col = cols_map[candidate]
-            break
-            
-    # Heuristics for Quantity
-    for candidate in ['qty sold', 'qty', 'quantity', 'sold', 'count', 'orders', 'amount']:
-        if candidate in cols_map:
-            qty_col = cols_map[candidate]
-            break
-            
-    # Heuristics for Time
-    for candidate in ['time', 'date', 'hour', 'timestamp']:
-        if candidate in cols_map:
-            time_col = cols_map[candidate]
-            break
-
+    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
     try:
+        # Normalize columns
+        cols_map = {c.lower().strip(): c for c in df.columns}
+        
+        # Heuristics for Item Name
+        item_col = next((cols_map[c] for c in ['item name', 'item', 'product', 'dish'] if c in cols_map), None)
+        # Heuristics for Quantity
+        qty_col = next((cols_map[c] for c in ['qty sold', 'qty', 'quantity', 'sold', 'orders'] if c in cols_map), None)
+        # Heuristics for Time
+        time_col = next((cols_map[c] for c in ['time', 'hour'] if c in cols_map), None)
+
         if item_col and qty_col:
             # Group by item to find top/bottom
             item_sales = df.groupby(item_col)[qty_col].sum().sort_values(ascending=False)
@@ -290,7 +286,6 @@ def analyze_internal_data(api_key, df):
             bottom_3 = item_sales.tail(3).to_dict()
             total_items_sold = item_sales.sum()
             
-            # Calculate Peak Hour if Time exists
             peak_time = "N/A"
             if time_col:
                 peak_time = df[time_col].mode()[0]
@@ -303,26 +298,23 @@ def analyze_internal_data(api_key, df):
             - Peak Time Slot: {peak_time}
             """
         else:
-            data_summary = "Could not automatically detect Item/Quantity columns for calculation. Relying on AI text analysis."
-        
+            data_summary = "Calculation skipped (columns not found). Analyzing raw text."
+            
     except Exception as e:
-        # Don't crash, just note the error for the AI context
-        data_summary = f"Automatic metric calculation failed ({str(e)}). Analyzing raw data sample instead."
+        data_summary = f"Error calculating metrics: {str(e)}"
 
-    # Convert to CSV string for the LLM
+    # Sample for AI reading
     csv_text = df.head(50).to_csv(index=False)
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
     
-    INPUT DATA SAMPLE:
-    {csv_text}
-    
-    PRE-CALCULATED METRICS:
+    INPUT DATA:
     {data_summary}
+    RAW SAMPLE: {csv_text}
     
-    TASK: Write a 'Menu Audit' based on the metrics (if available) OR the raw data sample.
+    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
     CONSTRAINT: Max 150 words.
     
     FORMAT:
@@ -367,11 +359,11 @@ def run_strategic_analysis(api_key):
     PART 2: COMPREHENSIVE PDF REPORT (Min 600 words)
     Format as text/markdown whitepaper.
     Sections:
-    1. MARKET DEEP DIVE
-    2. SWOT ANALYSIS (Detailed text)
-    3. MENU ENGINEERING
-    4. SCENARIO PLANNING
-    5. OPERATIONAL ROADMAP
+    1. MARKET DEEP DIVE (Weather, Events, Trends)
+    2. SWOT ANALYSIS (Strengths, Weaknesses, Opportunities, Threats detailed)
+    3. MENU ENGINEERING (Star Performers Analysis)
+    4. SCENARIO PLANNING (Best/Worst Case)
+    5. OPERATIONAL ROADMAP (Actionable steps)
     """
     try:
         genai.configure(api_key=api_key)
@@ -389,7 +381,6 @@ def run_strategic_analysis(api_key):
         
         return web_data, pdf_content
     except Exception as e: 
-        # Fallback for error
         return None, f"Error: {e}"
 
 def ask_executive_chat(api_key, question):
