@@ -4,3 +4,4 @@ google-generativeai
 fpdf
 duckduckgo-search
 openpyxl
+json
