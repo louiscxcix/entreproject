@@ -139,21 +139,9 @@ RESTAURANT_PROFILE = {
     "cuisine": "Mexican / Taqueria",
     "rating": "4.5",
     "menu_items": """
-    TACOS (3.90€/unit):
-    - Carnitas: Pork confit Quiroga style, onion, coriander, radish.
-    - Birria (Spicy): Beef in dried chili marinade, red pickled onion.
-    - Campechano: Grilled skirt steak, chorizo, onion, nopal.
-    - Tijuana (Spiced): Spiced chicken, mozzarella, guacamole, salsa Valentina.
-    - Alambre Veggie: Sauteed cauliflower w/ curcuma, sesame seeds.
-    
-    ENTRANTES:
-    - Nachos Pikio (12.50€): Homemade chips, cheddar, guacamole, jalapenos (Add meat/beans).
-    - Tostada de Pollo/Setas (5.00€): Crunchy corn tortilla, beans, feta, crispy onion.
-    
-    QUESADILLAS (9.90€):
-    - 20cm flour tortilla w/ mozzarella + Choice of: Chicken, Beef, Sausage, Mushrooms.
-    
-    DESSERTS (5.00€): Homemade daily options.
+    TACOS (3.90€): Carnitas, Birria (Spicy), Campechano, Tijuana (Spiced), Alambre Veggie.
+    ENTRANTES: Nachos Pikio (12.50€), Tostada de Pollo (5.00€).
+    QUESADILLAS (9.90€). DESSERTS (5.00€).
     """
 }
 
@@ -230,8 +218,8 @@ def fetch_external_intelligence(api_key):
     
     try:
         genai.configure(api_key=api_key)
-        # Enable Google Search Retrieval Tool
-        model = genai.GenerativeModel('gemini-2.0-flash', tools='google_search_retrieval')
+        # Enable Google Search Retrieval Tool with updated syntax
+        model = genai.GenerativeModel('gemini-2.0-flash', tools=[{'google_search': {}}])
         
         response = model.generate_content(prompt)
         
@@ -374,11 +362,21 @@ with right_col:
                 else: 
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
                 
+                # Robust Metric Calculation
+                total_rev = 0
+                if 'Total Revenue' in df.columns:
+                    total_rev = df['Total Revenue'].sum()
+                elif 'total_revenue' in df.columns:
+                    total_rev = df['total_revenue'].sum()
+                elif 'Unit Price' in df.columns and 'Qty Sold' in df.columns:
+                    total_rev = (df['Unit Price'] * df['Qty Sold']).sum()
+                
+                orders = len(df)
+                
                 # Mini Metrics
-                rev = df['Total Revenue'].sum()
                 c1, c2 = st.columns(2)
-                c1.metric("Revenue", f"€{rev:,.0f}")
-                c2.metric("Orders", len(df))
+                c1.metric("Revenue", f"€{total_rev:,.0f}")
+                c2.metric("Orders", orders)
                 
                 if st.button("🔍 Run Menu Audit", use_container_width=True):
                     if api_key:
