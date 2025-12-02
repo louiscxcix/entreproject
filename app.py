@@ -5,6 +5,7 @@ import time
 from datetime import datetime
 import random
 from fpdf import FPDF
+import json # ADDED for parsing structured response
 
 # --- 1. Page Configuration ---
 st.set_page_config(
@@ -142,6 +143,15 @@ st.markdown("""
         background-color: rgba(255,255,255,0.1) !important;
         border-radius: 8px 8px 0 0;
     }
+    
+    /* SWOT COLORS */
+    .swot-box {
+        padding: 10px;
+        border-radius: 8px;
+        background-color: rgba(255,255,255,0.05);
+        border: 1px solid rgba(255,255,255,0.1);
+        height: 100%;
+    }
     </style>
 """, unsafe_allow_html=True)
 
@@ -257,64 +267,45 @@ def fetch_external_intelligence(api_key):
         return fallback_report, 50
 
 def analyze_internal_data(api_key, df):
-    # FLEXIBLE COLUMN DETECTION: Calculate what we can, fallback to AI interpretation if needed
-    data_summary = "Calculation skipped - relying on AI interpretation."
-    
+    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
     try:
-        # Normalize columns for easier matching
-        cols = {c.lower(): c for c in df.columns}
+        # Group by item to find top/bottom
+        item_sales = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False)
         
-        # Attempt to find item and quantity columns loosely
-        item_col = next((cols[c] for c in ['item name', 'item', 'product', 'dish', 'menu item', 'name', 'desc', 'description'] if c in cols), None)
-        qty_col = next((cols[c] for c in ['qty sold', 'qty', 'quantity', 'count', 'orders', 'sold', 'amount', 'units'] if c in cols), None)
-        time_col = next((cols[c] for c in ['time', 'hour', 'date', 'timestamp'] if c in cols), None)
-
-        if item_col and qty_col:
-            # Group by item to find top/bottom
-            item_sales = df.groupby(item_col)[qty_col].sum().sort_values(ascending=False)
-            
-            top_3 = item_sales.head(3).to_dict()
-            bottom_3 = item_sales.tail(3).to_dict()
-            total_items_sold = item_sales.sum()
-            
-            peak_time = "N/A"
-            if time_col:
-                peak_time = df[time_col].mode()[0]
-            
-            data_summary = f"""
-            REAL CALCULATED METRICS:
-            - Top 3 Best Sellers: {top_3}
-            - Bottom 3 Sales (Dead Weight): {bottom_3}
-            - Total Items Sold: {total_items_sold}
-            - Peak Time Slot: {peak_time}
-            """
-        else:
-            data_summary = "Note: Could not automatically detect 'Item' or 'Quantity' columns for math calculation. Analyzing raw text sample."
-            
+        top_3 = item_sales.head(3).to_dict()
+        bottom_3 = item_sales.tail(3).to_dict()
+        total_items_sold = item_sales.sum()
+        
+        # Calculate Peak Hour if Time exists
+        peak_time = "N/A"
+        if 'Time' in df.columns:
+            peak_time = df['Time'].mode()[0]
+        
+        data_summary = f"""
+        REAL CALCULATED METRICS (DO NOT INVENT NUMBERS):
+        - Top 3 Best Sellers: {top_3}
+        - Bottom 3 Sales (Dead Weight): {bottom_3}
+        - Total Items Sold: {total_items_sold}
+        - Peak Time Slot: {peak_time}
+        """
+        
     except Exception as e:
-        data_summary = f"Note: Metric calculation skipped ({str(e)}). Analyzing raw text sample."
-
-    # Convert a sample of the dataframe to string for the AI to read
-    csv_text = df.head(100).to_csv(index=False)
+        return f"Error calculating metrics: {str(e)}"
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
     
-    INPUT DATA SAMPLE (First 100 rows):
-    {csv_text}
-    
-    PRE-CALCULATED METRICS (If available):
+    INPUT DATA:
     {data_summary}
     
-    TASK: Write a 'Menu Audit' based on the provided data.
-    If pre-calculated metrics are missing, infer the insights from the CSV sample.
+    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
     CONSTRAINT: Max 150 words.
     
     FORMAT:
-    1. 🏆 **Star Performers**: List the apparent top items. Explain why they might work.
-    2. 📉 **Dead Weight**: List low performers. Suggest an action.
-    3. ⏰ **Operational Pulse**: Comment on apparent peak times.
+    1. 🏆 **Star Performers**: List the Top 3 items found above. Explain why they work.
+    2. 📉 **Dead Weight**: List the Bottom 3 items found above. Suggest an action.
+    3. ⏰ **Operational Pulse**: Comment on the Peak Time identified above.
     """
     
     try:
@@ -325,43 +316,39 @@ def analyze_internal_data(api_key, df):
     except Exception as e: return f"Error analyzing data: {str(e)}"
 
 def run_strategic_analysis(api_key):
-    # WE REQUEST TWO SEPARATE OUTPUTS HERE: ONE FOR WEB, ONE FOR PDF
+    # REQUESTING JSON STRUCTURE FOR WEB PART
     prompt = f"""
     ACT AS: Senior Strategic Consultant for {RESTAURANT_PROFILE['name']}.
     CONTEXT 1 (External): {st.session_state.external_report}
     CONTEXT 2 (Internal): {st.session_state.internal_report}
     
-    TASK: Generate TWO distinct reports. Separate them with the string "|||SPLIT|||".
+    TASK: Generate TWO outputs. Separate with "|||SPLIT|||".
     
-    PART 1: WEB DASHBOARD SUMMARY (Max 200 words)
-    Format:
-    1. 📊 **Executive Summary**: 1 sentence synthesis of the situation.
-    2. 💰 **Revenue Opportunity**: Specific menu push based on trends + margin.
-    3. 🛡️ **Operational Defense**: Staffing/Inventory adjustment based on risks.
-    4. 📢 **Marketing Strategy**: Social hook.
+    PART 1: WEB DASHBOARD (Strict JSON format)
+    Return ONLY valid JSON with these keys:
+    {{
+      "executive_summary": "1 sentence synthesis",
+      "revenue": "Specific menu push",
+      "ops": "Staffing/Inventory advice",
+      "marketing": "Social hook",
+      "swot": {{
+        "strengths": ["point 1", "point 2"],
+        "weaknesses": ["point 1", "point 2"],
+        "opportunities": ["point 1", "point 2"],
+        "threats": ["point 1", "point 2"]
+      }}
+    }}
 
     |||SPLIT|||
 
     PART 2: COMPREHENSIVE PDF REPORT (Min 600 words)
-    Format as a professional whitepaper. Use CAPITALIZED HEADERS (No markdown bolding).
+    Format as text/markdown whitepaper.
     Sections:
-    1. MARKET CONTEXT DEEP DIVE
-       - Detailed analysis of weather and events.
-    
-    2. SWOT ANALYSIS (STRATEGIC ASSESSMENT)
-       - STRENGTHS: Internal high-performers.
-       - WEAKNESSES: Dead weight items.
-       - OPPORTUNITIES: External trends to capture.
-       - THREATS: Competitor activity/weather.
-
-    3. FINANCIAL FORENSICS & MENU ENGINEERING
-       - Analysis of the Star Performers vs Dead Weight.
-    
-    4. SCENARIO PLANNING (BEST CASE / WORST CASE)
-       - Prediction for tonight's service.
-    
-    5. DETAILED OPERATIONAL ROADMAP
-       - Hour-by-hour checklist.
+    1. MARKET DEEP DIVE
+    2. SWOT ANALYSIS (Detailed text)
+    3. MENU ENGINEERING
+    4. SCENARIO PLANNING
+    5. OPERATIONAL ROADMAP
     """
     try:
         genai.configure(api_key=api_key)
@@ -369,11 +356,18 @@ def run_strategic_analysis(api_key):
         response = model.generate_content(prompt)
         
         parts = response.text.split("|||SPLIT|||")
-        web_content = parts[0]
-        pdf_content = parts[1] if len(parts) > 1 else parts[0]
+        web_json_str = parts[0].strip()
+        # Clean potential markdown fencing around JSON
+        if web_json_str.startswith("```json"):
+            web_json_str = web_json_str.replace("```json", "").replace("```", "").strip()
+            
+        web_data = json.loads(web_json_str)
+        pdf_content = parts[1] if len(parts) > 1 else "Error parsing report."
         
-        return web_content, pdf_content
-    except: return "Error generating strategy.", "Error generating report."
+        return web_data, pdf_content
+    except Exception as e: 
+        # Fallback for error
+        return None, f"Error: {e}"
 
 def ask_executive_chat(api_key, question):
     prompt = f"""
@@ -381,7 +375,6 @@ def ask_executive_chat(api_key, question):
     DATA CONTEXT:
     [EXTERNAL]: {st.session_state.external_report}
     [INTERNAL]: {st.session_state.internal_report}
-    [STRATEGY]: {st.session_state.analysis_result}
     
     USER QUESTION: "{question}"
     
@@ -490,15 +483,62 @@ if st.session_state.analysis_result:
     # OUTPUT DIVISION: Strategic Report & Decision Tool
     tab1, tab2 = st.tabs(["📄 Strategic Report", "🤖 Decision Consultant"])
     
-    # TAB 1: REPORT
+    # TAB 1: REPORT UI
     with tab1:
-        st.markdown(f"""
-        <div style="background-color:rgba(255,255,255,0.1); padding:25px; border-radius:10px; border-left: 5px solid #3b82f6;">
-            {st.session_state.analysis_result}
-        </div>
-        """, unsafe_allow_html=True)
+        # Check if result is valid dict (JSON success)
+        if isinstance(st.session_state.analysis_result, dict):
+            data = st.session_state.analysis_result
+            
+            # 1. Executive Summary
+            st.info(f"📊 **Executive Summary:** {data.get('executive_summary', 'N/A')}")
+            
+            # 2. Strategy Cards
+            c1, c2, c3 = st.columns(3)
+            with c1:
+                with st.container(border=True):
+                    st.markdown("💰 **Revenue**")
+                    st.write(data.get('revenue', 'N/A'))
+            with c2:
+                with st.container(border=True):
+                    st.markdown("🛡️ **Ops**")
+                    st.write(data.get('ops', 'N/A'))
+            with c3:
+                with st.container(border=True):
+                    st.markdown("📢 **Marketing**")
+                    st.write(data.get('marketing', 'N/A'))
+            
+            # 3. SWOT Grid
+            st.write("")
+            st.markdown("### 🧭 SWOT Analysis")
+            swot = data.get('swot', {})
+            
+            row1_1, row1_2 = st.columns(2)
+            with row1_1:
+                with st.container(border=True):
+                    st.markdown(":green[**STRENGTHS**]")
+                    for item in swot.get('strengths', []): st.write(f"• {item}")
+            with row1_2:
+                with st.container(border=True):
+                    st.markdown(":red[**WEAKNESSES**]")
+                    for item in swot.get('weaknesses', []): st.write(f"• {item}")
+            
+            row2_1, row2_2 = st.columns(2)
+            with row2_1:
+                with st.container(border=True):
+                    st.markdown(":blue[**OPPORTUNITIES**]")
+                    for item in swot.get('opportunities', []): st.write(f"• {item}")
+            with row2_2:
+                with st.container(border=True):
+                    st.markdown(":orange[**THREATS**]")
+                    for item in swot.get('threats', []): st.write(f"• {item}")
+
+        else:
+            # Fallback for error/text response
+            st.warning("Could not parse structured report. Displaying raw output:")
+            st.markdown(st.session_state.analysis_result)
         
         # PDF DOWNLOAD BUTTON
+        st.write("")
         st.write("")
         pdf_bytes = create_pdf(st.session_state.detailed_report)
         st.download_button(
