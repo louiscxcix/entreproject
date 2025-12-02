@@ -199,7 +199,7 @@ def fetch_external_intelligence(api_key):
     CURRENT TIME: {current_time}
     MENU: {RESTAURANT_PROFILE['menu_items']}
     
-    TASK: Use Google Search to find REAL-TIME data for Barcelona right now:
+    TASK: Find REAL-TIME data for Barcelona right now:
     1. **Weather**: Current weather + forecast for tonight in Barcelona.
     2. **Events**: Major events today/tonight (Concerts, Sports, Conferences, Local Festivities).
     3. **Traffic**: General traffic congestion levels in Eixample/Diagonal area.
@@ -362,21 +362,7 @@ with right_col:
                 else: 
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
                 
-                # Robust Metric Calculation
-                total_rev = 0
-                if 'Total Revenue' in df.columns:
-                    total_rev = df['Total Revenue'].sum()
-                elif 'total_revenue' in df.columns:
-                    total_rev = df['total_revenue'].sum()
-                elif 'Unit Price' in df.columns and 'Qty Sold' in df.columns:
-                    total_rev = (df['Unit Price'] * df['Qty Sold']).sum()
-                
-                orders = len(df)
-                
-                # Mini Metrics
-                c1, c2 = st.columns(2)
-                c1.metric("Revenue", f"€{total_rev:,.0f}")
-                c2.metric("Orders", orders)
+                # Removed the specific Metric Calculation block here to rely purely on AI Analysis
                 
                 if st.button("🔍 Run Menu Audit", use_container_width=True):
                     if api_key:
