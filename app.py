@@ -9,8 +9,8 @@ import json
 
 # --- 1. Page Configuration ---
 st.set_page_config(
-    page_title="BarnaInsights: Pikio Taco",
-    page_icon="🌮",
+    page_title="Chiaro AI: Pikio Taco",
+    page_icon="icon.png", # Updated to local icon
     layout="wide",
     initial_sidebar_state="collapsed"
 )
@@ -183,6 +183,13 @@ with st.sidebar:
     # HARDCODED API KEY FOR BETA TESTING
     api_key = "AIzaSyBs576jalSxcZPVQV49lvISU-JQffWWHk4"
     st.divider()
+    
+    # Updated to use local icon.png
+    try:
+        st.image("icon.png", width=60)
+    except:
+        st.caption("[Icon missing]") # Fallback if file isn't uploaded yet
+        
     st.subheader("📍 Profile")
     st.info(f"**{RESTAURANT_PROFILE['name']}**\n\n{RESTAURANT_PROFILE['address']}")
     with st.expander("Show Menu Data"):
@@ -194,36 +201,27 @@ with st.sidebar:
 def create_pdf(report_text):
     class PDF(FPDF):
         def header(self):
-            # Professional Blue Header Bar
-            self.set_fill_color(30, 58, 138) 
-            self.rect(0, 0, 210, 30, 'F')
-            self.set_font('Arial', 'B', 16)
-            self.set_text_color(255, 255, 255)
-            self.cell(0, 10, f'BarnaInsights: {RESTAURANT_PROFILE["name"]}', 0, 1, 'L')
-            self.set_font('Arial', '', 10)
-            self.cell(0, 5, f'Strategic Analysis Report | {datetime.now().strftime("%Y-%m-%d")}', 0, 1, 'L')
-            self.ln(20)
+            self.set_font('Arial', 'B', 15)
+            self.cell(0, 10, f'Strategic Report: {RESTAURANT_PROFILE["name"]}', 0, 1, 'C')
+            self.ln(10)
             
         def footer(self):
             self.set_y(-15)
             self.set_font('Arial', 'I', 8)
-            self.set_text_color(100, 100, 100)
-            self.cell(0, 10, f'Confidential Internal Document - Page {self.page_no()}', 0, 0, 'C')
+            self.cell(0, 10, f'Chiaro AI - Confidential - Page {self.page_no()}', 0, 0, 'C')
 
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=11)
+    pdf.set_font("Arial", size=12)
     
-    # Text Cleaning for PDF Compatibility
-    clean_text = report_text.replace('**', '').replace('###', '').replace('#', '')
-    # Handle encoding
-    clean_text = clean_text.encode('latin-1', 'replace').decode('latin-1')
+    # Clean text: FPDF has trouble with unicode/emojis. We replace them or encode to latin-1
+    clean_text = report_text.encode('latin-1', 'replace').decode('latin-1')
     
-    pdf.multi_cell(0, 6, txt=clean_text)
+    pdf.multi_cell(0, 10, txt=clean_text)
     return pdf.output(dest='S').encode('latin-1')
 
 @st.cache_data(ttl=600)
-def fetch_external_intelligence(_api_key):
+def fetch_external_intelligence(api_key):
     # FIXED: Direct generation ONLY. No tools to hang on.
     # Note: _api_key argument has underscore to prevent hashing it for cache
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
@@ -233,27 +231,27 @@ def fetch_external_intelligence(_api_key):
     CURRENT TIME: {current_time}
     MENU: {RESTAURANT_PROFILE['menu_items']}
     
-    TASK: Generate a realistic "Live Data" simulation for Barcelona based on the current date and time ({current_time}).
-    Use your internal knowledge of Barcelona's climate, seasonal events, and traffic patterns.
+    TASK: Generate a "Market & Trend Insights" simulation for Barcelona based on ({current_time}).
     
-    SIMULATE THESE DATA POINTS:
-    1. **Weather**: Accurate typical weather for Barcelona in this season.
-    2. **Events**: Mention a realistic event (e.g. Football match, Festival, or Conference) that typically happens around this date.
-    3. **Traffic**: Realistic congestion for Eixample at {current_time}.
-    4. **Competitors**: Estimate busyness of Mexican spots (La Taqueria) based on day of week.
+    GOAL: Detect emerging demand and proactive recommendations.
+    
+    SIMULATE THESE SIGNALS:
+    1. **Mobility & Events**: Major events (Football, Concerts, Fira) or standard traffic patterns that impact footfall vs delivery.
+    2. **Weather Demand**: How current weather impacts craving (e.g. Rain -> Comfort Food Delivery).
+    3. **Competitor Watch**: Likely competitor activity (Promotions, open hours) for this day/time.
+    4. **Social Trends**: 1 trending food topic/hashtag in Barcelona right now.
     
     OUTPUT: 
-    1. Calculate a heuristic 'Opportunity Score' (0-100) based on this simulation.
-    2. Write a 'Strategic Intelligence Briefing'.
-       CONSTRAINT: Max 150 words total.
+    1. Calculate a 'Demand Score' (0-100) based on these external factors.
+    2. Write a 'Market Pulse Briefing' (Max 150 words).
        FORMAT: Use emojis and bold text.
-       - **Radar**: [Simulated Weather] | [Simulated Event].
-       - **Impact**: How this affects footfall vs delivery.
-       - **Action**: One quick recommendation.
+       - **Radar**: [Weather] | [Event].
+       - **Trend**: Emerging customer interest.
+       - **Proactive Move**: One specific action to capture this demand.
     """
     
     try:
-        genai.configure(api_key=_api_key)
+        genai.configure(api_key=api_key)
         # Use standard model without tools to ensure speed and stability
         model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025') 
         response = model.generate_content(prompt)
@@ -277,6 +275,9 @@ def analyze_internal_data(api_key, df):
         qty_col = next((cols_map[c] for c in ['qty sold', 'qty', 'quantity', 'sold', 'orders'] if c in cols_map), None)
         # Heuristics for Time
         time_col = next((cols_map[c] for c in ['time', 'hour'] if c in cols_map), None)
+        # Heuristics for Cost/Price (for margin)
+        cost_col = next((cols_map[c] for c in ['unit cost', 'cost', 'cogs'] if c in cols_map), None)
+        price_col = next((cols_map[c] for c in ['unit price', 'price', 'revenue'] if c in cols_map), None)
 
         if item_col and qty_col:
             # Group by item to find top/bottom
@@ -290,12 +291,24 @@ def analyze_internal_data(api_key, df):
             if time_col:
                 peak_time = df[time_col].mode()[0]
             
+            # Simple margin check if columns exist
+            margin_note = "Margin data unavailable."
+            if cost_col and price_col:
+                # Calculate estimated margin for top item
+                top_item = item_sales.index[0]
+                try:
+                    row = df[df[item_col] == top_item].iloc[0]
+                    margin = row[price_col] - row[cost_col]
+                    margin_note = f"Top Item '{top_item}' has approx margin of €{margin:.2f}"
+                except: pass
+
             data_summary = f"""
-            REAL CALCULATED METRICS (Based on columns '{item_col}' and '{qty_col}'):
-            - Top 3 Best Sellers: {top_3}
-            - Bottom 3 Sales (Dead Weight): {bottom_3}
-            - Total Items Sold: {total_items_sold}
-            - Peak Time Slot: {peak_time}
+            REAL METRICS FOR OPTIMIZATION:
+            - Top 3 (High Demand): {top_3}
+            - Bottom 3 (Dead Stock Risk): {bottom_3}
+            - Total Volume: {total_items_sold}
+            - Peak Order Time: {peak_time}
+            - Financial Context: {margin_note}
             """
         else:
             data_summary = "Calculation skipped (columns not found). Analyzing raw text."
@@ -307,20 +320,20 @@ def analyze_internal_data(api_key, df):
     csv_text = df.head(50).to_csv(index=False)
 
     prompt = f"""
-    ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
+    ROLE: Inventory & Revenue Analyst for {RESTAURANT_PROFILE['name']}.
     MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
     
     INPUT DATA:
     {data_summary}
     RAW SAMPLE: {csv_text}
     
-    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
-    CONSTRAINT: Max 150 words.
+    TASK: Perform a 'Cost & Inventory Optimization Audit'.
+    CONSTRAINT: Max 150 words. Focus on reducing waste and increasing margins.
     
     FORMAT:
-    1. 🏆 **Star Performers**: List the Top 3 items found above. Explain why they work.
-    2. 📉 **Dead Weight**: List the Bottom 3 items found above. Suggest an action.
-    3. ⏰ **Operational Pulse**: Comment on the Peak Time identified above.
+    1. 📉 **Cost/Waste Alert**: Identify 'Dead Weight' items that risk spoilage. Suggest action (stop ordering vs promo).
+    2. 💰 **Revenue Driver**: Identify high-performing items. Suggest pricing adjustment or stock increase.
+    3. ⏰ **Pattern**: Note peak times for staff/prep optimization.
     """
     
     try:
@@ -334,18 +347,18 @@ def run_strategic_analysis(api_key):
     # REQUESTING JSON STRUCTURE FOR WEB PART
     prompt = f"""
     ACT AS: Senior Strategic Consultant for {RESTAURANT_PROFILE['name']}.
-    CONTEXT 1 (External): {st.session_state.external_report}
-    CONTEXT 2 (Internal): {st.session_state.internal_report}
+    CONTEXT 1 (External - Market Trends): {st.session_state.external_report}
+    CONTEXT 2 (Internal - Inventory/Revenue): {st.session_state.internal_report}
     
     TASK: Generate TWO outputs. Separate with "|||SPLIT|||".
     
     PART 1: WEB DASHBOARD (Strict JSON format)
     Return ONLY valid JSON with these keys:
     {{
-      "executive_summary": "1 sentence synthesis",
-      "revenue": "Specific menu push",
-      "ops": "Staffing/Inventory advice",
-      "marketing": "Social hook",
+      "executive_summary": "1 sentence synthesis of the opportunity.",
+      "revenue": "Revenue & Demand: Pricing/Upsell recommendation.",
+      "ops": "Cost & Inventory: Waste reduction or stock optimization action.",
+      "marketing": "Market Trend: Social hook matching current vibes.",
       "swot": {{
         "strengths": ["point 1", "point 2"],
         "weaknesses": ["point 1", "point 2"],
@@ -359,11 +372,21 @@ def run_strategic_analysis(api_key):
     PART 2: COMPREHENSIVE PDF REPORT (Min 600 words)
     Format as text/markdown whitepaper.
     Sections:
-    1. MARKET DEEP DIVE (Weather, Events, Trends)
-    2. SWOT ANALYSIS (Strengths, Weaknesses, Opportunities, Threats detailed)
-    3. MENU ENGINEERING (Star Performers Analysis)
-    4. SCENARIO PLANNING (Best/Worst Case)
-    5. OPERATIONAL ROADMAP (Actionable steps)
+    1. COST & INVENTORY OPTIMIZATION
+       - Demand forecasting to reduce waste.
+       - Supplier/Stock recommendations based on 'Dead Weight' analysis.
+    
+    2. REVENUE & DEMAND INTELLIGENCE
+       - Sales pattern prediction (Internal + External signals).
+       - Pricing Strategy (e.g. Dynamic pricing for high demand events).
+    
+    3. MARKET & CUSTOMER TREND INSIGHTS
+       - Competitor movements and Social sentiment.
+       - Proactive recommendations for emerging demand.
+    
+    4. SWOT ANALYSIS (Detailed)
+    
+    5. OPERATIONAL ROADMAP (Next 24 Hours)
     """
     try:
         genai.configure(api_key=api_key)
@@ -393,7 +416,7 @@ def ask_executive_chat(api_key, question):
     
     USER QUESTION: "{question}"
     
-    TASK: Answer concisely (<100 words). Cite data above.
+    TASK: Answer concisely (<100 words). Cite data above. Focus on Cost, Revenue, or Market trends.
     """
     try:
         genai.configure(api_key=api_key)
@@ -407,7 +430,7 @@ def ask_executive_chat(api_key, question):
 st.markdown(f"""
 <div class="header-card">
     <h1 style="margin:0; font-weight:800; font-size: 2.5rem; letter-spacing: -1px;">
-        🌮 BarnaInsights
+        Chiaro AI
     </h1>
     <p style="margin:0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.8;">
         Real-time Intelligence for <b>{RESTAURANT_PROFILE['name']}</b>
@@ -421,8 +444,8 @@ left_col, mid_col, right_col = st.columns([1, 0.1, 1])
 # --- LEFT COLUMN ---
 with left_col:
     with st.container(border=True):
-        st.markdown("### 🌍 External Radar")
-        st.caption("Barcelona City Sensors (Weather, Events, Traffic)")
+        st.markdown("### 🌍 Market & Trend Insights")
+        st.caption("Barcelona City Sensors (Weather, Events, Competitors)")
         
         if st.button("🔄 Scan Live Signals", use_container_width=True):
             if api_key:
@@ -439,7 +462,7 @@ with left_col:
             with c1: st.metric("Opp. Score", f"{st.session_state.opp_score}/100")
             with c2:
                 st.progress(st.session_state.opp_score / 100)
-                st.caption("Based on real-time demand signals")
+                st.caption("Real-time Demand Intensity")
             st.info(st.session_state.external_report)
         else:
             st.markdown("*Waiting for scan...*")
@@ -451,7 +474,7 @@ with mid_col:
 # --- RIGHT COLUMN ---
 with right_col:
     with st.container(border=True):
-        st.markdown("### 📊 Internal Audit")
+        st.markdown("### 📊 Cost & Inventory Audit")
         st.caption("Upload POS Data (CSV/Excel)")
         
         uploaded_file = st.file_uploader("Drop Sales File Here", type=['csv', 'xlsx'], label_visibility="collapsed")
@@ -464,9 +487,9 @@ with right_col:
                 else: 
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
                 
-                if st.button("🔍 Run Menu Audit", use_container_width=True):
+                if st.button("🔍 Run Optimization Audit", use_container_width=True):
                     if api_key:
-                        with st.spinner("Analyzing margins..."):
+                        with st.spinner("Analyzing Margins & Waste Risk..."):
                             rep = analyze_internal_data(api_key, df)
                             st.session_state.internal_report = rep
                     else: st.error("Add API Key")
@@ -511,15 +534,15 @@ if st.session_state.analysis_result:
             c1, c2, c3 = st.columns(3)
             with c1:
                 with st.container(border=True):
-                    st.markdown("💰 **Revenue**")
+                    st.markdown("💰 **Revenue Strategy**")
                     st.write(data.get('revenue', 'N/A'))
             with c2:
                 with st.container(border=True):
-                    st.markdown("🛡️ **Ops**")
+                    st.markdown("🛡️ **Cost/Inventory**")
                     st.write(data.get('ops', 'N/A'))
             with c3:
                 with st.container(border=True):
-                    st.markdown("📢 **Marketing**")
+                    st.markdown("📢 **Market/Trend**")
                     st.write(data.get('marketing', 'N/A'))
             
             # 3. SWOT Grid
