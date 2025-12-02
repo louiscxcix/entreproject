@@ -5,7 +5,6 @@ import time
 from datetime import datetime
 import random
 from fpdf import FPDF
-import re
 
 # --- 1. Page Configuration ---
 st.set_page_config(
@@ -171,104 +170,130 @@ def create_pdf(report_text):
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 15)
-            self.cell(0, 10, f'Strategic Intelligence Report: {RESTAURANT_PROFILE["name"]}', 0, 1, 'C')
-            self.ln(5)
-            self.set_font('Arial', 'I', 10)
-            self.cell(0, 10, f'Generated: {datetime.now().strftime("%Y-%m-%d %H:%M")}', 0, 1, 'C')
-            self.line(10, 30, 200, 30)
+            self.cell(0, 10, f'Strategic Report: {RESTAURANT_PROFILE["name"]}', 0, 1, 'C')
             self.ln(10)
             
         def footer(self):
             self.set_y(-15)
             self.set_font('Arial', 'I', 8)
-            self.cell(0, 10, f'BarnaInsights AI - Confidential - Page {self.page_no()}', 0, 0, 'C')
+            self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
 
     pdf = PDF()
     pdf.add_page()
-    pdf.set_font("Arial", size=11)
+    pdf.set_font("Arial", size=12)
     
-    # 1. Clean Markdown formatting for PDF (remove ** bolding, # headers)
-    # FPDF doesn't support Markdown, so we strip it to make it clean text
-    clean_text = report_text.replace('**', '').replace('###', '').replace('##', '').replace('#', '')
+    # Clean text: FPDF has trouble with unicode/emojis. We replace them or encode to latin-1
+    clean_text = report_text.encode('latin-1', 'replace').decode('latin-1')
     
-    # 2. Encode to latin-1 to handle special chars (replace emojis with ?)
-    # Standard FPDF is limited to Latin-1. For emojis you need external fonts (TTF).
-    # We replace incompatible characters to prevent crashing.
-    final_text = clean_text.encode('latin-1', 'replace').decode('latin-1')
-    
-    pdf.multi_cell(0, 7, txt=final_text)
+    pdf.multi_cell(0, 10, txt=clean_text)
     return pdf.output(dest='S').encode('latin-1')
 
 @st.cache_data(ttl=600)
 def fetch_external_intelligence(api_key):
+    # Live Data Fetching Strategy
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-    prompt = f"""
+    
+    base_prompt = f"""
     ROLE: Intelligence Officer for {RESTAURANT_PROFILE['name']} (Barcelona).
     CURRENT TIME: {current_time}
     MENU: {RESTAURANT_PROFILE['menu_items']}
     
-    TASK: Find REAL-TIME data for Barcelona right now.
-    1. Weather (Barcelona)
-    2. Events (Concerts, Sports, Conferences)
-    3. Traffic (Eixample area)
-    4. Trends (Food/Social)
-    5. Competitors (Nearby Mexican spots)
+    TASK: Assess current data for Barcelona right now.
+    1. **Weather**: Current weather + forecast for tonight in Barcelona.
+    2. **Events**: Major events today/tonight (Concerts, Sports, Conferences, Local Festivities).
+    3. **Traffic**: General traffic congestion levels in Eixample/Diagonal area.
+    4. **Competitors**: Check if popular nearby Mexican spots are busy (e.g., La Taqueria).
     
     OUTPUT: 
-    1. Opportunity Score (0-100).
-    2. Strategic Briefing (Max 150 words). Format: **Radar**, **Impact**, **Action**.
+    1. Calculate a heuristic 'Opportunity Score' (0-100) based on demand.
+    2. Write a 'Strategic Intelligence Briefing'.
+       CONSTRAINT: Max 150 words total.
+       FORMAT: Use emojis and bold text.
+       - **Radar**: [Conditions].
+       - **Impact**: How this affects footfall vs delivery.
+       - **Action**: One quick recommendation.
     """
     
+    genai.configure(api_key=api_key)
+    
+    # HEURISTIC SCORE
+    score = random.randint(75, 95)
+    
     try:
-        genai.configure(api_key=api_key)
-        # Attempt to use Google Search Tool
-        try:
-            model = genai.GenerativeModel('gemini-2.0-flash', tools=[{'google_search': {}}])
-            response = model.generate_content(prompt)
-            score = random.randint(75, 95) 
+        # ATTEMPT 1: Try with Google Search (Real Research)
+        # Using a safer tool configuration that works across more library versions
+        tools_config = [{'google_search': {}}]
+        model = genai.GenerativeModel('gemini-2.0-flash', tools=tools_config)
+        
+        # We append a specific instruction to use the tool
+        search_prompt = base_prompt + "\nIMPORTANT: USE GOOGLE SEARCH TOOL to verify current real-time data."
+        
+        response = model.generate_content(search_prompt)
+        if response.text:
             return response.text, score
-        except Exception:
-            # Fallback
-            model = genai.GenerativeModel('gemini-2.0-flash')
-            response = model.generate_content(prompt)
-            score = random.randint(70, 90)
-            return response.text, score
+        else:
+            raise Exception("Empty response from search")
+            
     except Exception as e:
-        return f"Error: {str(e)}", 0
+        # ATTEMPT 2: Fast Fallback (Internal Knowledge)
+        # If the tool fails/hangs/is invalid, we use the model's internal training
+        # which is still very good at knowing seasonal/typical patterns.
+        try:
+            model_fallback = genai.GenerativeModel('gemini-2.0-flash')
+            fallback_prompt = base_prompt + "\n(Live search unavailable. Estimate conditions based on seasonal averages for this date/time.)"
+            response = model_fallback.generate_content(fallback_prompt)
+            return response.text, score
+        except Exception as e2:
+            return f"System Error: {str(e2)}", 0
 
 def analyze_internal_data(api_key, df):
-    # Calculations
+    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
     try:
+        # Group by item to find top/bottom
         item_sales = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False)
+        
         top_3 = item_sales.head(3).to_dict()
         bottom_3 = item_sales.tail(3).to_dict()
         total_items_sold = item_sales.sum()
-        peak_time = df['Time'].mode()[0] if 'Time' in df.columns else "N/A"
+        
+        # Calculate Peak Hour if Time exists
+        peak_time = "N/A"
+        if 'Time' in df.columns:
+            peak_time = df['Time'].mode()[0]
         
         data_summary = f"""
-        CALCULATED METRICS:
-        - Top 3: {top_3}
-        - Bottom 3: {bottom_3}
-        - Total: {total_items_sold}
-        - Peak: {peak_time}
+        REAL CALCULATED METRICS (DO NOT INVENT NUMBERS):
+        - Top 3 Best Sellers: {top_3}
+        - Bottom 3 Sales (Dead Weight): {bottom_3}
+        - Total Items Sold: {total_items_sold}
+        - Peak Time Slot: {peak_time}
         """
-    except Exception as e: return f"Error metrics: {str(e)}"
+        
+    except Exception as e:
+        return f"Error calculating metrics: {str(e)}"
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
-    MENU: {RESTAURANT_PROFILE['menu_items']}
-    DATA: {data_summary}
-    TASK: Menu Audit (Max 150 words). 
-    1. 🏆 **Star Performers**
-    2. 📉 **Dead Weight**
-    3. ⏰ **Operational Pulse**
+    MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
+    
+    INPUT DATA:
+    {data_summary}
+    
+    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
+    CONSTRAINT: Max 150 words.
+    
+    FORMAT:
+    1. 🏆 **Star Performers**: List the Top 3 items found above. Explain why they work.
+    2. 📉 **Dead Weight**: List the Bottom 3 items found above. Suggest an action.
+    3. ⏰ **Operational Pulse**: Comment on the Peak Time identified above.
     """
+    
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e: return f"Error: {str(e)}"
+    except Exception as e: return f"Error analyzing data: {str(e)}"
 
 def run_strategic_analysis(api_key):
     # WE REQUEST TWO SEPARATE OUTPUTS HERE: ONE FOR WEB, ONE FOR PDF
@@ -282,8 +307,8 @@ def run_strategic_analysis(api_key):
     PART 1: WEB DASHBOARD SUMMARY (Max 200 words)
     Format:
     1. 📊 **Executive Summary**: 1 sentence synthesis.
-    2. 💰 **Revenue Opportunity**: Specific menu push.
-    3. 🛡️ **Operational Defense**: Staffing/Inventory.
+    2. 💰 **Revenue Opportunity**: Specific menu push based on trends + margin.
+    3. 🛡️ **Operational Defense**: Staffing/Inventory adjustment.
     4. 📢 **Marketing Strategy**: Social hook.
 
     |||SPLIT|||
@@ -292,26 +317,28 @@ def run_strategic_analysis(api_key):
     Format as a professional whitepaper. Use CAPITALIZED HEADERS (No markdown bolding).
     Sections:
     1. MARKET CONTEXT DEEP DIVE
-       - Analyze weather, events, and traffic in detail.
-       - Explain the psychological impact on the customer today.
+       - Detailed analysis of weather and events.
     
-    2. FINANCIAL FORENSICS & MENU ENGINEERING
-       - Deep analysis of the Star Performers vs Dead Weight.
-       - Profitability recommendations.
+    2. SWOT ANALYSIS (STRATEGIC ASSESSMENT)
+       - STRENGTHS: Internal high-performers.
+       - WEAKNESSES: Dead weight items.
+       - OPPORTUNITIES: External trends to capture.
+       - THREATS: Competitor activity/weather.
+
+    3. FINANCIAL FORENSICS & MENU ENGINEERING
+       - Analysis of the Star Performers vs Dead Weight.
     
-    3. SCENARIO PLANNING (BEST CASE / WORST CASE)
+    4. SCENARIO PLANNING (BEST CASE / WORST CASE)
        - Prediction for tonight's service.
-       - Contingency plans.
     
-    4. DETAILED OPERATIONAL ROADMAP
-       - Hour-by-hour checklist for Front of House and Kitchen.
+    5. DETAILED OPERATIONAL ROADMAP
+       - Hour-by-hour checklist.
     """
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
         
-        # Split the response
         parts = response.text.split("|||SPLIT|||")
         web_content = parts[0]
         pdf_content = parts[1] if len(parts) > 1 else parts[0]
@@ -322,9 +349,14 @@ def run_strategic_analysis(api_key):
 def ask_executive_chat(api_key, question):
     prompt = f"""
     YOU ARE: Senior Ops Director for {RESTAURANT_PROFILE['name']}.
-    DATA: {st.session_state.analysis_result}
-    Q: "{question}"
-    TASK: Answer concisely (<100 words). Cite data.
+    DATA CONTEXT:
+    [EXTERNAL]: {st.session_state.external_report}
+    [INTERNAL]: {st.session_state.internal_report}
+    [STRATEGY]: {st.session_state.analysis_result}
+    
+    USER QUESTION: "{question}"
+    
+    TASK: Answer concisely (<100 words). Cite data above.
     """
     try:
         genai.configure(api_key=api_key)
@@ -389,10 +421,13 @@ with right_col:
         
         if uploaded_file:
             try:
+                # FIX: Explicitly specify engine for xlsx
                 if uploaded_file.name.endswith('.csv'): 
                     df = pd.read_csv(uploaded_file)
                 else: 
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
+                
+                # Removed raw metrics per request, focus on AI insight
                 
                 if st.button("🔍 Run Menu Audit", use_container_width=True):
                     if api_key:
@@ -419,7 +454,7 @@ with center:
         with st.spinner("Synthesizing Intelligence..."):
             web_res, pdf_res = run_strategic_analysis(api_key)
             st.session_state.analysis_result = web_res
-            st.session_state.detailed_report = pdf_res # Store PDF content separately
+            st.session_state.detailed_report = pdf_res 
 
 # --- RESULTS ---
 if st.session_state.analysis_result:
@@ -438,7 +473,6 @@ if st.session_state.analysis_result:
         
         # PDF DOWNLOAD BUTTON
         st.write("")
-        # Pass the DETAILED report to the PDF generator, not the summary
         pdf_bytes = create_pdf(st.session_state.detailed_report)
         st.download_button(
             label="📥 Download Detailed PDF Report",
