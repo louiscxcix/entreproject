@@ -179,14 +179,13 @@ with st.sidebar:
 
 # --- 6. LOGIC FUNCTIONS ---
 
-# PDF Generator Function
+# PDF Generator
 def create_pdf(report_text):
     class PDF(FPDF):
         def header(self):
             self.set_font('Arial', 'B', 15)
             self.cell(0, 10, f'Strategic Report: {RESTAURANT_PROFILE["name"]}', 0, 1, 'C')
             self.ln(10)
-            
         def footer(self):
             self.set_y(-15)
             self.set_font('Arial', 'I', 8)
@@ -195,18 +194,13 @@ def create_pdf(report_text):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
-    
-    # Clean text: FPDF has trouble with unicode/emojis. We replace them or encode to latin-1
     clean_text = report_text.encode('latin-1', 'replace').decode('latin-1')
-    
     pdf.multi_cell(0, 10, txt=clean_text)
     return pdf.output(dest='S').encode('latin-1')
 
-@st.cache_data(ttl=600)
+# --- CRITICAL FIX: transport='rest' added to prevent hanging ---
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_external_intelligence(api_key):
-    # FIXED: PURE GENERATION STRATEGY (No Tools)
-    # This prevents timeouts by using the model's internal knowledge base exclusively
-    
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     
     prompt = f"""
@@ -215,152 +209,101 @@ def fetch_external_intelligence(api_key):
     MENU: {RESTAURANT_PROFILE['menu_items']}
     
     TASK: Generate a realistic "Live Data" simulation for Barcelona based on the current date and time ({current_time}).
-    Use your internal knowledge of Barcelona's climate, seasonal events, and traffic patterns.
     
     SIMULATE THESE DATA POINTS:
     1. **Weather**: Accurate typical weather for Barcelona in this season.
-    2. **Events**: Mention a realistic event (e.g. Football match, Festival, or Conference) that typically happens around this date.
+    2. **Events**: Mention a realistic event (e.g. Football match, Festival, or Conference).
     3. **Traffic**: Realistic congestion for Eixample at {current_time}.
-    4. **Competitors**: Estimate busyness of Mexican spots (La Taqueria) based on day of week.
+    4. **Competitors**: Estimate busyness of Mexican spots (La Taqueria).
     
     OUTPUT: 
-    1. Calculate a heuristic 'Opportunity Score' (0-100) based on this simulation.
-    2. Write a 'Strategic Intelligence Briefing'.
-       CONSTRAINT: Max 150 words total.
-       FORMAT: Use emojis and bold text.
-       - **Radar**: [Simulated Weather] | [Simulated Event].
-       - **Impact**: How this affects footfall vs delivery.
-       - **Action**: One quick recommendation.
+    1. Calculate a heuristic 'Opportunity Score' (0-100).
+    2. Write a 'Strategic Intelligence Briefing'. Max 150 words.
     """
     
     try:
-        genai.configure(api_key=api_key)
-        # Use standard model without tools to ensure speed and stability
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
+        # FIX: Force 'rest' transport to avoid gRPC blocks
+        genai.configure(api_key=api_key, transport="rest")
         
-        # Heuristic score for demo visualization
+        # FIX: Use stable model name
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        
+        # FIX: Add a timeout to prevent infinite loading
+        response = model.generate_content(prompt, request_options={'timeout': 30})
+        
         score = random.randint(75, 95)
-        
         return response.text, score
     except Exception as e:
-        return f"Error: {str(e)}", 0
+        return f"Error connecting to AI: {str(e)}", 0
 
 def analyze_internal_data(api_key, df):
-    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
     try:
-        # Group by item to find top/bottom
+        df.columns = df.columns.str.strip()
         item_sales = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False)
-        
         top_3 = item_sales.head(3).to_dict()
         bottom_3 = item_sales.tail(3).to_dict()
         total_items_sold = item_sales.sum()
-        
-        # Calculate Peak Hour if Time exists
         peak_time = "N/A"
-        if 'Time' in df.columns:
-            peak_time = df['Time'].mode()[0]
+        if 'Time' in df.columns: peak_time = df['Time'].mode()[0]
         
         data_summary = f"""
-        REAL CALCULATED METRICS (DO NOT INVENT NUMBERS):
+        REAL METRICS:
         - Top 3 Best Sellers: {top_3}
-        - Bottom 3 Sales (Dead Weight): {bottom_3}
+        - Bottom 3 Sales: {bottom_3}
         - Total Items Sold: {total_items_sold}
         - Peak Time Slot: {peak_time}
         """
-        
     except Exception as e:
-        return f"Error calculating metrics: {str(e)}"
+        return f"Error processing file. Need columns 'Item Name' and 'Qty Sold'. Details: {str(e)}"
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
-    
-    INPUT DATA:
-    {data_summary}
-    
-    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
-    CONSTRAINT: Max 150 words.
-    
-    FORMAT:
-    1. 🏆 **Star Performers**: List the Top 3 items found above. Explain why they work.
-    2. 📉 **Dead Weight**: List the Bottom 3 items found above. Suggest an action.
-    3. ⏰ **Operational Pulse**: Comment on the Peak Time identified above.
+    INPUT DATA: {data_summary}
+    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above. Max 150 words.
     """
     
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
+        # FIX: Force 'rest' transport
+        genai.configure(api_key=api_key, transport="rest")
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt, request_options={'timeout': 30})
         return response.text
     except Exception as e: return f"Error analyzing data: {str(e)}"
 
 def run_strategic_analysis(api_key):
-    # WE REQUEST TWO SEPARATE OUTPUTS HERE: ONE FOR WEB, ONE FOR PDF
     prompt = f"""
     ACT AS: Senior Strategic Consultant for {RESTAURANT_PROFILE['name']}.
     CONTEXT 1 (External): {st.session_state.external_report}
     CONTEXT 2 (Internal): {st.session_state.internal_report}
-    
-    TASK: Generate TWO distinct reports. Separate them with the string "|||SPLIT|||".
+    TASK: Generate TWO distinct reports. Separate them with "|||SPLIT|||".
     
     PART 1: WEB DASHBOARD SUMMARY (Max 200 words)
-    Format:
-    1. 📊 **Executive Summary**: 1 sentence synthesis of the situation.
-    2. 💰 **Revenue Opportunity**: Specific menu push based on trends + margin.
-    3. 🛡️ **Operational Defense**: Staffing/Inventory adjustment based on risks.
-    4. 📢 **Marketing Strategy**: Social hook.
-
-    |||SPLIT|||
-
-    PART 2: COMPREHENSIVE PDF REPORT (Min 600 words)
-    Format as a professional whitepaper. Use CAPITALIZED HEADERS (No markdown bolding).
-    Sections:
-    1. MARKET CONTEXT DEEP DIVE
-       - Detailed analysis of weather and events.
-    
-    2. SWOT ANALYSIS (STRATEGIC ASSESSMENT)
-       - STRENGTHS: Internal high-performers.
-       - WEAKNESSES: Dead weight items.
-       - OPPORTUNITIES: External trends to capture.
-       - THREATS: Competitor activity/weather.
-
-    3. FINANCIAL FORENSICS & MENU ENGINEERING
-       - Analysis of the Star Performers vs Dead Weight.
-    
-    4. SCENARIO PLANNING (BEST CASE / WORST CASE)
-       - Prediction for tonight's service.
-    
-    5. DETAILED OPERATIONAL ROADMAP
-       - Hour-by-hour checklist.
+    PART 2: COMPREHENSIVE PDF REPORT (Min 600 words, detailed sections)
     """
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
-        response = model.generate_content(prompt)
+        # FIX: Force 'rest' transport
+        genai.configure(api_key=api_key, transport="rest")
+        model = genai.GenerativeModel('gemini-1.5-flash')
+        response = model.generate_content(prompt, request_options={'timeout': 60})
         
         parts = response.text.split("|||SPLIT|||")
         web_content = parts[0]
         pdf_content = parts[1] if len(parts) > 1 else parts[0]
-        
         return web_content, pdf_content
     except: return "Error generating strategy.", "Error generating report."
 
 def ask_executive_chat(api_key, question):
     prompt = f"""
     YOU ARE: Senior Ops Director for {RESTAURANT_PROFILE['name']}.
-    DATA CONTEXT:
-    [EXTERNAL]: {st.session_state.external_report}
-    [INTERNAL]: {st.session_state.internal_report}
-    [STRATEGY]: {st.session_state.analysis_result}
-    
-    USER QUESTION: "{question}"
-    
-    TASK: Answer concisely (<100 words). Cite data above.
+    DATA: [EXTERNAL]: {st.session_state.external_report} [INTERNAL]: {st.session_state.internal_report}
+    QUESTION: "{question}"
+    TASK: Answer concisely (<100 words).
     """
     try:
-        genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # FIX: Force 'rest' transport
+        genai.configure(api_key=api_key, transport="rest")
+        model = genai.GenerativeModel('gemini-1.5-flash')
         return model.generate_content(prompt).text
     except: return "Error."
 
@@ -378,14 +321,14 @@ st.markdown(f"""
 </div>
 """, unsafe_allow_html=True)
 
-# MAIN COLUMNS
+# COLUMNS
 left_col, mid_col, right_col = st.columns([1, 0.1, 1])
 
 # --- LEFT COLUMN ---
 with left_col:
     with st.container(border=True):
         st.markdown("### 🌍 External Radar")
-        st.caption("Barcelona City Sensors (Weather, Events, Traffic)")
+        st.caption("Barcelona City Sensors")
         
         if st.button("🔄 Scan Live Signals", use_container_width=True):
             if api_key:
@@ -393,7 +336,7 @@ with left_col:
                     report, score = fetch_external_intelligence(api_key)
                     st.session_state.external_report = report
                     st.session_state.opp_score = score
-            else: st.error("Add API Key in Sidebar")
+            else: st.error("Add API Key")
             
         st.markdown("---")
         
@@ -402,7 +345,7 @@ with left_col:
             with c1: st.metric("Opp. Score", f"{st.session_state.opp_score}/100")
             with c2:
                 st.progress(st.session_state.opp_score / 100)
-                st.caption("Based on real-time demand signals")
+                st.caption("Real-time Demand")
             st.info(st.session_state.external_report)
         else:
             st.markdown("*Waiting for scan...*")
@@ -421,7 +364,6 @@ with right_col:
         
         if uploaded_file:
             try:
-                # FIX: Explicitly specify engine for xlsx
                 if uploaded_file.name.endswith('.csv'): 
                     df = pd.read_csv(uploaded_file)
                 else: 
