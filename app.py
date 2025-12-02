@@ -6,6 +6,7 @@ from datetime import datetime
 import random
 from fpdf import FPDF
 import json
+import base64
 
 # --- 1. Page Configuration ---
 st.set_page_config(
@@ -427,8 +428,24 @@ def ask_executive_chat(api_key, question):
 # --- 7. MAIN LAYOUT ---
 
 # HEADER
+# Helper to load image as Base64 for HTML injection
+def get_img_as_base64(file):
+    try:
+        with open(file, "rb") as f:
+            data = f.read()
+        return base64.b64encode(data).decode()
+    except: return None
+
+# Try loading local icon, fallback to emoji if missing
+icon_b64 = get_img_as_base64("icon.png")
+if icon_b64:
+    icon_html = f'<img src="data:image/png;base64,{icon_b64}" style="width: 80px; margin-bottom: 15px;">'
+else:
+    icon_html = '<div style="font-size: 60px; margin-bottom: 10px;">🌮</div>'
+
 st.markdown(f"""
 <div class="header-card">
+    {icon_html}
     <h1 style="margin:0; font-weight:800; font-size: 2.5rem; letter-spacing: -1px;">
         Chiaro AI
     </h1>
