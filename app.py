@@ -194,14 +194,13 @@ def create_pdf(report_text):
     pdf = PDF()
     pdf.add_page()
     pdf.set_font("Arial", size=12)
+    # Handle encoding issues (fpdf doesn't like some characters)
     clean_text = report_text.encode('latin-1', 'replace').decode('latin-1')
     pdf.multi_cell(0, 10, txt=clean_text)
     return pdf.output(dest='S').encode('latin-1')
 
-@st.cache_data(ttl=600)
+@st.cache_data(ttl=600, show_spinner=False)
 def fetch_external_intelligence(api_key):
-    # FALLBACK STRATEGY: Use internal knowledge to simulate live data
-    # This prevents the "Unknown field" and "Taking too long" errors by avoiding the buggy tool call
     
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     
@@ -231,8 +230,8 @@ def fetch_external_intelligence(api_key):
     
     try:
         genai.configure(api_key=api_key)
-        # Use standard model without tools to ensure speed and stability
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # CHANGED MODEL TO STABLE VERSION
+        model = genai.GenerativeModel('gemini-1.5-flash') 
         response = model.generate_content(prompt)
         
         # Heuristic score for demo visualization
@@ -243,9 +242,13 @@ def fetch_external_intelligence(api_key):
         return f"Error: {str(e)}", 0
 
 def analyze_internal_data(api_key, df):
-    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
+    # 1. PYTHON-SIDE CALCULATION
     try:
+        # Normalize columns if needed (basic check)
+        df.columns = df.columns.str.strip()
+        
         # Group by item to find top/bottom
+        # Assuming column names are 'Item Name' and 'Qty Sold', adjust if your CSV is different
         item_sales = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False)
         
         top_3 = item_sales.head(3).to_dict()
@@ -266,7 +269,7 @@ def analyze_internal_data(api_key, df):
         """
         
     except Exception as e:
-        return f"Error calculating metrics: {str(e)}"
+        return f"Error calculating metrics. Check CSV columns (Need 'Item Name', 'Qty Sold'): {str(e)}"
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
@@ -286,13 +289,13 @@ def analyze_internal_data(api_key, df):
     
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # CHANGED MODEL TO STABLE VERSION
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         return response.text
     except Exception as e: return f"Error analyzing data: {str(e)}"
 
 def run_strategic_analysis(api_key):
-    # WE REQUEST TWO SEPARATE OUTPUTS HERE: ONE FOR WEB, ONE FOR PDF
     prompt = f"""
     ACT AS: Senior Strategic Consultant for {RESTAURANT_PROFILE['name']}.
     CONTEXT 1 (External): {st.session_state.external_report}
@@ -332,7 +335,8 @@ def run_strategic_analysis(api_key):
     """
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # CHANGED MODEL TO STABLE VERSION
+        model = genai.GenerativeModel('gemini-1.5-flash')
         response = model.generate_content(prompt)
         
         parts = response.text.split("|||SPLIT|||")
@@ -356,7 +360,8 @@ def ask_executive_chat(api_key, question):
     """
     try:
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.0-flash')
+        # CHANGED MODEL TO STABLE VERSION
+        model = genai.GenerativeModel('gemini-1.5-flash')
         return model.generate_content(prompt).text
     except: return "Error."
 
@@ -421,6 +426,7 @@ with right_col:
                 if uploaded_file.name.endswith('.csv'): 
                     df = pd.read_csv(uploaded_file)
                 else: 
+                    # Ensure you have 'openpyxl' installed: pip install openpyxl
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
                 
                 if st.button("🔍 Run Menu Audit", use_container_width=True):
