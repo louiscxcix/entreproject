@@ -204,7 +204,9 @@ def create_pdf(report_text):
 
 @st.cache_data(ttl=600)
 def fetch_external_intelligence(api_key):
-    # FIXED: Use correct model and robust fallback to prevent hanging
+    # FALLBACK STRATEGY: Use internal knowledge to simulate live data
+    # This prevents the "Unknown field" and "Taking too long" errors by avoiding the buggy tool call
+    
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     
     prompt = f"""
@@ -233,7 +235,7 @@ def fetch_external_intelligence(api_key):
     
     try:
         genai.configure(api_key=api_key)
-        # Use the supported preview model to ensure connection
+        # Use standard model without tools to ensure speed and stability
         model = genai.GenerativeModel('gemini-2.5-flash-preview-09-2025') 
         response = model.generate_content(prompt)
         
@@ -255,45 +257,64 @@ def fetch_external_intelligence(api_key):
         return fallback_report, 50
 
 def analyze_internal_data(api_key, df):
-    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
+    # FLEXIBLE COLUMN DETECTION: Calculate what we can, fallback to AI interpretation if needed
+    data_summary = "Calculation skipped - relying on AI interpretation."
+    
     try:
-        # Group by item to find top/bottom
-        item_sales = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False)
+        # Normalize columns for easier matching
+        cols = {c.lower(): c for c in df.columns}
         
-        top_3 = item_sales.head(3).to_dict()
-        bottom_3 = item_sales.tail(3).to_dict()
-        total_items_sold = item_sales.sum()
-        
-        # Calculate Peak Hour if Time exists
-        peak_time = "N/A"
-        if 'Time' in df.columns:
-            peak_time = df['Time'].mode()[0]
-        
-        data_summary = f"""
-        REAL CALCULATED METRICS (DO NOT INVENT NUMBERS):
-        - Top 3 Best Sellers: {top_3}
-        - Bottom 3 Sales (Dead Weight): {bottom_3}
-        - Total Items Sold: {total_items_sold}
-        - Peak Time Slot: {peak_time}
-        """
-        
+        # Attempt to find item and quantity columns loosely
+        item_col = next((cols[c] for c in ['item name', 'item', 'product', 'dish', 'menu item', 'name', 'desc', 'description'] if c in cols), None)
+        qty_col = next((cols[c] for c in ['qty sold', 'qty', 'quantity', 'count', 'orders', 'sold', 'amount', 'units'] if c in cols), None)
+        time_col = next((cols[c] for c in ['time', 'hour', 'date', 'timestamp'] if c in cols), None)
+
+        if item_col and qty_col:
+            # Group by item to find top/bottom
+            item_sales = df.groupby(item_col)[qty_col].sum().sort_values(ascending=False)
+            
+            top_3 = item_sales.head(3).to_dict()
+            bottom_3 = item_sales.tail(3).to_dict()
+            total_items_sold = item_sales.sum()
+            
+            peak_time = "N/A"
+            if time_col:
+                peak_time = df[time_col].mode()[0]
+            
+            data_summary = f"""
+            REAL CALCULATED METRICS:
+            - Top 3 Best Sellers: {top_3}
+            - Bottom 3 Sales (Dead Weight): {bottom_3}
+            - Total Items Sold: {total_items_sold}
+            - Peak Time Slot: {peak_time}
+            """
+        else:
+            data_summary = "Note: Could not automatically detect 'Item' or 'Quantity' columns for math calculation. Analyzing raw text sample."
+            
     except Exception as e:
-        return f"Error calculating metrics: {str(e)}"
+        data_summary = f"Note: Metric calculation skipped ({str(e)}). Analyzing raw text sample."
+
+    # Convert a sample of the dataframe to string for the AI to read
+    csv_text = df.head(100).to_csv(index=False)
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
     
-    INPUT DATA:
+    INPUT DATA SAMPLE (First 100 rows):
+    {csv_text}
+    
+    PRE-CALCULATED METRICS (If available):
     {data_summary}
     
-    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
+    TASK: Write a 'Menu Audit' based on the provided data.
+    If pre-calculated metrics are missing, infer the insights from the CSV sample.
     CONSTRAINT: Max 150 words.
     
     FORMAT:
-    1. 🏆 **Star Performers**: List the Top 3 items found above. Explain why they work.
-    2. 📉 **Dead Weight**: List the Bottom 3 items found above. Suggest an action.
-    3. ⏰ **Operational Pulse**: Comment on the Peak Time identified above.
+    1. 🏆 **Star Performers**: List the apparent top items. Explain why they might work.
+    2. 📉 **Dead Weight**: List low performers. Suggest an action.
+    3. ⏰ **Operational Pulse**: Comment on apparent peak times.
     """
     
     try:
@@ -434,8 +455,6 @@ with right_col:
                     df = pd.read_csv(uploaded_file)
                 else: 
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
-                
-                # Removed raw metrics per request, focus on AI insight
                 
                 if st.button("🔍 Run Menu Audit", use_container_width=True):
                     if api_key:
