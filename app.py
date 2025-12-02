@@ -56,30 +56,44 @@ st.markdown("""
         color: #1e293b !important; /* Slate-800 */
     }
     
-    /* 4. BUTTONS (Modern Flat Design) */
-    div.stButton > button {
-        background-color: #e2e8f0 !important; /* Slate-200 */
-        color: #0f172a !important; /* Dark Blue Text */
-        border: 1px solid #cbd5e1 !important;
-        border-radius: 8px !important;
-        font-weight: 600 !important;
-        padding: 0.5rem 1rem !important;
-        transition: all 0.2s ease-in-out;
+    /* 4. BUTTONS - THE NUCLEAR OPTION FOR BLACK TEXT */
+    
+    /* Target ALL buttons including secondary and primary */
+    button[kind="secondary"], button[kind="primary"], div.stButton > button {
+        background-color: #e2e8f0 !important;
+        border: 1px solid #94a3b8 !important;
+        transition: all 0.2s ease-in-out !important;
     }
-    div.stButton > button:hover {
-        background-color: #cbd5e1 !important; /* Slate-300 */
-        border-color: #94a3b8 !important;
+
+    /* Force TEXT COLOR to Black on ALL internal elements */
+    button[kind="secondary"] *, button[kind="primary"] *, div.stButton > button * {
+        color: #000000 !important;
+        fill: #000000 !important; /* For icons */
+        font-weight: 800 !important;
+    }
+
+    /* Primary Button Specifics (Blue Background, Black Text) */
+    button[kind="primary"], div.row-widget.stButton > button[kind="primary"] {
+        background-color: #3b82f6 !important; /* Blue-500 */
+        border: 2px solid #1e293b !important;
+    }
+
+    /* HOVER STATES - Keep Text Black */
+    button[kind="secondary"]:hover, button[kind="primary"]:hover, div.stButton > button:hover {
+        background-color: #cbd5e1 !important; /* Darker Slate */
+        border-color: #ffffff !important;
         transform: translateY(-1px);
     }
     
-    /* Primary Action Button (Generate Strategy) */
-    div.row-widget.stButton > button[kind="primary"] {
-        background-color: #3b82f6 !important; /* Blue-500 */
-        color: white !important;
-        border: none !important;
+    button[kind="secondary"]:hover *, button[kind="primary"]:hover *, div.stButton > button:hover * {
+        color: #000000 !important;
     }
-    div.row-widget.stButton > button[kind="primary"]:hover {
-        background-color: #2563eb !important; /* Blue-600 */
+
+    /* ACTIVE/FOCUS STATES */
+    button[kind="secondary"]:focus, button[kind="primary"]:focus, div.stButton > button:focus {
+        background-color: #94a3b8 !important;
+        color: #000000 !important;
+        border-color: #000000 !important;
     }
 
     /* 5. INPUT FIELDS */
@@ -101,7 +115,7 @@ st.markdown("""
     /* Hide Streamlit Elements */
     div[data-testid="stDecoration"] { visibility: hidden; }
     
-    /* Top Bar Styling - AGGRESSIVE OVERRIDE */
+    /* Top Bar Styling */
     header[data-testid="stHeader"] {
         background-color: #0f172a !important;
         border-bottom: 1px solid rgba(255,255,255,0.1);
@@ -190,61 +204,47 @@ def create_pdf(report_text):
 
 @st.cache_data(ttl=600)
 def fetch_external_intelligence(api_key):
-    # Live Data Fetching Strategy
+    # FALLBACK STRATEGY: Use internal knowledge to simulate live data
+    # This prevents the "Unknown field" and "Taking too long" errors by avoiding the buggy tool call
+    
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     
-    base_prompt = f"""
+    prompt = f"""
     ROLE: Intelligence Officer for {RESTAURANT_PROFILE['name']} (Barcelona).
     CURRENT TIME: {current_time}
     MENU: {RESTAURANT_PROFILE['menu_items']}
     
-    TASK: Assess current data for Barcelona right now.
-    1. **Weather**: Current weather + forecast for tonight in Barcelona.
-    2. **Events**: Major events today/tonight (Concerts, Sports, Conferences, Local Festivities).
-    3. **Traffic**: General traffic congestion levels in Eixample/Diagonal area.
-    4. **Competitors**: Check if popular nearby Mexican spots are busy (e.g., La Taqueria).
+    TASK: Generate a realistic "Live Data" simulation for Barcelona based on the current date and time ({current_time}).
+    Use your knowledge of Barcelona seasonality, typical weather for this month, and recurring events.
+    
+    SIMULATE THESE DATA POINTS:
+    1. **Weather**: Accurate typical weather for Barcelona in this season.
+    2. **Events**: Mention a realistic event (e.g. Football match, Festival, or Conference) that typically happens around this date.
+    3. **Traffic**: Realistic congestion for Eixample at {current_time}.
+    4. **Competitors**: Estimate busyness of Mexican spots (La Taqueria) based on day of week.
     
     OUTPUT: 
-    1. Calculate a heuristic 'Opportunity Score' (0-100) based on demand.
+    1. Calculate a heuristic 'Opportunity Score' (0-100) based on this simulation.
     2. Write a 'Strategic Intelligence Briefing'.
        CONSTRAINT: Max 150 words total.
        FORMAT: Use emojis and bold text.
-       - **Radar**: [Conditions].
+       - **Radar**: [Simulated Weather] | [Simulated Event].
        - **Impact**: How this affects footfall vs delivery.
        - **Action**: One quick recommendation.
     """
     
-    genai.configure(api_key=api_key)
-    
-    # HEURISTIC SCORE
-    score = random.randint(75, 95)
-    
     try:
-        # ATTEMPT 1: Try with Google Search (Real Research)
-        # Using a safer tool configuration that works across more library versions
-        tools_config = [{'google_search': {}}]
-        model = genai.GenerativeModel('gemini-2.0-flash', tools=tools_config)
+        genai.configure(api_key=api_key)
+        # Use standard model without tools to ensure speed and stability
+        model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content(prompt)
         
-        # We append a specific instruction to use the tool
-        search_prompt = base_prompt + "\nIMPORTANT: USE GOOGLE SEARCH TOOL to verify current real-time data."
+        # Heuristic score for demo visualization
+        score = random.randint(75, 95)
         
-        response = model.generate_content(search_prompt)
-        if response.text:
-            return response.text, score
-        else:
-            raise Exception("Empty response from search")
-            
+        return response.text, score
     except Exception as e:
-        # ATTEMPT 2: Fast Fallback (Internal Knowledge)
-        # If the tool fails/hangs/is invalid, we use the model's internal training
-        # which is still very good at knowing seasonal/typical patterns.
-        try:
-            model_fallback = genai.GenerativeModel('gemini-2.0-flash')
-            fallback_prompt = base_prompt + "\n(Live search unavailable. Estimate conditions based on seasonal averages for this date/time.)"
-            response = model_fallback.generate_content(fallback_prompt)
-            return response.text, score
-        except Exception as e2:
-            return f"System Error: {str(e2)}", 0
+        return f"Error: {str(e)}", 0
 
 def analyze_internal_data(api_key, df):
     # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
@@ -306,9 +306,9 @@ def run_strategic_analysis(api_key):
     
     PART 1: WEB DASHBOARD SUMMARY (Max 200 words)
     Format:
-    1. 📊 **Executive Summary**: 1 sentence synthesis.
+    1. 📊 **Executive Summary**: 1 sentence synthesis of the situation.
     2. 💰 **Revenue Opportunity**: Specific menu push based on trends + margin.
-    3. 🛡️ **Operational Defense**: Staffing/Inventory adjustment.
+    3. 🛡️ **Operational Defense**: Staffing/Inventory adjustment based on risks.
     4. 📢 **Marketing Strategy**: Social hook.
 
     |||SPLIT|||
@@ -427,8 +427,6 @@ with right_col:
                 else: 
                     df = pd.read_excel(uploaded_file, engine='openpyxl')
                 
-                # Removed raw metrics per request, focus on AI insight
-                
                 if st.button("🔍 Run Menu Audit", use_container_width=True):
                     if api_key:
                         with st.spinner("Analyzing margins..."):
@@ -460,7 +458,7 @@ with center:
 if st.session_state.analysis_result:
     st.divider()
     
-    # OUTPUT DIVISION
+    # OUTPUT DIVISION: Strategic Report & Decision Tool
     tab1, tab2 = st.tabs(["📄 Strategic Report", "🤖 Decision Consultant"])
     
     # TAB 1: REPORT
