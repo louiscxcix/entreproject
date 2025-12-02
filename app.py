@@ -200,135 +200,159 @@ def create_pdf(report_text):
 
 @st.cache_data(ttl=600)
 def fetch_external_intelligence(api_key):
-    # STEP 1: RESEARCH (Generate Data Feed)
+    # FALLBACK STRATEGY: Use internal knowledge to simulate live data
+    # This prevents the "Unknown field" and "Taking too long" errors by avoiding the buggy tool call
+    
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
-    day_name = datetime.now().strftime("%A")
     
-    research_prompt = f"""
-    ACT AS: Advanced Market Research AI for Barcelona.
-    TIMESTAMP: {current_time} ({day_name}).
-    LOCATION: Eixample District (Near Còrsega/Diagonal).
+    prompt = f"""
+    ROLE: Intelligence Officer for {RESTAURANT_PROFILE['name']} (Barcelona).
+    CURRENT TIME: {current_time}
+    MENU: {RESTAURANT_PROFILE['menu_items']}
     
-    TASK: Generate a highly realistic "Live Data Feed" for this specific moment in time.
+    TASK: Generate a realistic "Live Data" simulation for Barcelona based on the current date and time ({current_time}).
     Use your internal knowledge of Barcelona's climate, seasonal events, and traffic patterns.
     
-    PROVIDE REALISTIC DATA FOR:
-    1. **Weather**: Exact typical condition for this month/hour in BCN (e.g. "Partly Cloudy, 18°C").
-    2. **Events**: Is there a major event today? (e.g. Fira, Camp Nou Match, Primavera Sound, or just 'Standard Tuesday').
-    3. **Traffic**: Congestion level on Diagonal/Còrsega right now.
-    4. **Social Trends**: 1 trending food topic in Spain/Barcelona right now.
-    5. **Competitors**: Estimated crowdedness of nearby spots.
+    SIMULATE THESE DATA POINTS:
+    1. **Weather**: Accurate typical weather for Barcelona in this season.
+    2. **Events**: Mention a realistic event (e.g. Football match, Festival, or Conference) that typically happens around this date.
+    3. **Traffic**: Realistic congestion for Eixample at {current_time}.
+    4. **Competitors**: Estimate busyness of Mexican spots (La Taqueria) based on day of week.
     
-    OUTPUT: A raw bulleted list of these facts.
+    OUTPUT: 
+    1. Calculate a heuristic 'Opportunity Score' (0-100) based on this simulation.
+    2. Write a 'Strategic Intelligence Briefing'.
+       CONSTRAINT: Max 150 words total.
+       FORMAT: Use emojis and bold text.
+       - **Radar**: [Simulated Weather] | [Simulated Event].
+       - **Impact**: How this affects footfall vs delivery.
+       - **Action**: One quick recommendation.
     """
     
     try:
         genai.configure(api_key=api_key)
+        # Use standard model without tools to ensure speed and stability
         model = genai.GenerativeModel('gemini-2.0-flash')
+        response = model.generate_content(prompt)
         
-        # 1. Execute Research
-        research_response = model.generate_content(research_prompt)
-        raw_data = research_response.text
+        # Heuristic score for demo visualization
+        score = random.randint(75, 95)
         
-        # STEP 2: ANALYZE (Generate Report from Feed)
-        analysis_prompt = f"""
-        ROLE: Intelligence Officer for {RESTAURANT_PROFILE['name']}.
-        MENU: {RESTAURANT_PROFILE['menu_items']}
-        
-        INPUT DATA (LIVE CONDITIONS):
-        {raw_data}
-        
-        TASK: 
-        1. Calculate an Opportunity Score (0-100) based on this data.
-        2. Write a 'Strategic Intelligence Briefing'.
-           CONSTRAINT: Max 150 words total.
-           FORMAT: Use emojis and bold text.
-           - **Radar**: [Summarize the Weather & Events].
-           - **Impact**: How this affects footfall vs delivery.
-           - **Action**: One quick recommendation.
-        """
-        
-        final_response = model.generate_content(analysis_prompt)
-        score = random.randint(70, 95) # Heuristic score for visualization
-        
-        return final_response.text, score
-        
+        return response.text, score
     except Exception as e:
         return f"Error: {str(e)}", 0
 
 def analyze_internal_data(api_key, df):
-    # 1. PYTHON-SIDE CALCULATION
+    # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
     try:
+        # Group by item to find top/bottom
         item_sales = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False)
+        
         top_3 = item_sales.head(3).to_dict()
         bottom_3 = item_sales.tail(3).to_dict()
         total_items_sold = item_sales.sum()
+        
+        # Calculate Peak Hour if Time exists
         peak_time = "N/A"
-        if 'Time' in df.columns: peak_time = df['Time'].mode()[0]
+        if 'Time' in df.columns:
+            peak_time = df['Time'].mode()[0]
         
         data_summary = f"""
-        REAL METRICS:
+        REAL CALCULATED METRICS (DO NOT INVENT NUMBERS):
         - Top 3 Best Sellers: {top_3}
-        - Bottom 3 Sales: {bottom_3}
-        - Total Items: {total_items_sold}
-        - Peak Time: {peak_time}
+        - Bottom 3 Sales (Dead Weight): {bottom_3}
+        - Total Items Sold: {total_items_sold}
+        - Peak Time Slot: {peak_time}
         """
-    except Exception as e: return f"Error calculating metrics: {str(e)}"
+        
+    except Exception as e:
+        return f"Error calculating metrics: {str(e)}"
 
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
-    MENU: {RESTAURANT_PROFILE['menu_items']}
-    INPUT: {data_summary}
-    TASK: Menu Audit (Max 150 words). 
-    1. 🏆 **Star Performers**: List top 3. Why successful?
-    2. 📉 **Dead Weight**: List bottom 3. Suggest action.
-    3. ⏰ **Operational Pulse**: Comment on peak time.
+    MENU CONTEXT: {RESTAURANT_PROFILE['menu_items']}
+    
+    INPUT DATA:
+    {data_summary}
+    
+    TASK: Write a 'Menu Audit' based STRICTLY on the metrics above.
+    CONSTRAINT: Max 150 words.
+    
+    FORMAT:
+    1. 🏆 **Star Performers**: List the Top 3 items found above. Explain why they work.
+    2. 📉 **Dead Weight**: List the Bottom 3 items found above. Suggest an action.
+    3. ⏰ **Operational Pulse**: Comment on the Peak Time identified above.
     """
+    
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
         return response.text
-    except Exception as e: return f"Error: {str(e)}"
+    except Exception as e: return f"Error analyzing data: {str(e)}"
 
 def run_strategic_analysis(api_key):
+    # WE REQUEST TWO SEPARATE OUTPUTS HERE: ONE FOR WEB, ONE FOR PDF
     prompt = f"""
     ACT AS: Senior Strategic Consultant for {RESTAURANT_PROFILE['name']}.
     CONTEXT 1 (External): {st.session_state.external_report}
     CONTEXT 2 (Internal): {st.session_state.internal_report}
     
-    TASK: Generate TWO reports. Separate with "|||SPLIT|||".
+    TASK: Generate TWO distinct reports. Separate them with the string "|||SPLIT|||".
     
-    PART 1: WEB SUMMARY (Max 200 words)
-    1. 📊 **Exec Summary**: 1 sentence.
-    2. 💰 **Revenue**: Menu push.
-    3. 🛡️ **Ops**: Staffing.
-    4. 📢 **Marketing**: Social hook.
+    PART 1: WEB DASHBOARD SUMMARY (Max 200 words)
+    Format:
+    1. 📊 **Executive Summary**: 1 sentence synthesis of the situation.
+    2. 💰 **Revenue Opportunity**: Specific menu push based on trends + margin.
+    3. 🛡️ **Operational Defense**: Staffing/Inventory adjustment based on risks.
+    4. 📢 **Marketing Strategy**: Social hook.
 
     |||SPLIT|||
 
-    PART 2: PDF REPORT (Min 600 words)
+    PART 2: COMPREHENSIVE PDF REPORT (Min 600 words)
+    Format as a professional whitepaper. Use CAPITALIZED HEADERS (No markdown bolding).
     Sections:
-    1. MARKET CONTEXT (Detailed)
-    2. SWOT ANALYSIS (Strengths, Weaknesses, Opportunities, Threats) based on data.
-    3. MENU ENGINEERING
-    4. SCENARIO PLANNING
-    5. OPERATIONAL ROADMAP
+    1. MARKET CONTEXT DEEP DIVE
+       - Detailed analysis of weather and events.
+    
+    2. SWOT ANALYSIS (STRATEGIC ASSESSMENT)
+       - STRENGTHS: Internal high-performers.
+       - WEAKNESSES: Dead weight items.
+       - OPPORTUNITIES: External trends to capture.
+       - THREATS: Competitor activity/weather.
+
+    3. FINANCIAL FORENSICS & MENU ENGINEERING
+       - Analysis of the Star Performers vs Dead Weight.
+    
+    4. SCENARIO PLANNING (BEST CASE / WORST CASE)
+       - Prediction for tonight's service.
+    
+    5. DETAILED OPERATIONAL ROADMAP
+       - Hour-by-hour checklist.
     """
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
+        
         parts = response.text.split("|||SPLIT|||")
-        return parts[0], parts[1] if len(parts) > 1 else parts[0]
-    except: return "Error.", "Error."
+        web_content = parts[0]
+        pdf_content = parts[1] if len(parts) > 1 else parts[0]
+        
+        return web_content, pdf_content
+    except: return "Error generating strategy.", "Error generating report."
 
 def ask_executive_chat(api_key, question):
     prompt = f"""
-    YOU ARE: Ops Director for {RESTAURANT_PROFILE['name']}.
-    DATA: {st.session_state.external_report} | {st.session_state.internal_report} | {st.session_state.analysis_result}
-    Q: "{question}"
-    TASK: Answer concisely (<100 words). Cite data.
+    YOU ARE: Senior Ops Director for {RESTAURANT_PROFILE['name']}.
+    DATA CONTEXT:
+    [EXTERNAL]: {st.session_state.external_report}
+    [INTERNAL]: {st.session_state.internal_report}
+    [STRATEGY]: {st.session_state.analysis_result}
+    
+    USER QUESTION: "{question}"
+    
+    TASK: Answer concisely (<100 words). Cite data above.
     """
     try:
         genai.configure(api_key=api_key)
@@ -393,8 +417,11 @@ with right_col:
         
         if uploaded_file:
             try:
-                if uploaded_file.name.endswith('.csv'): df = pd.read_csv(uploaded_file)
-                else: df = pd.read_excel(uploaded_file, engine='openpyxl')
+                # FIX: Explicitly specify engine for xlsx
+                if uploaded_file.name.endswith('.csv'): 
+                    df = pd.read_csv(uploaded_file)
+                else: 
+                    df = pd.read_excel(uploaded_file, engine='openpyxl')
                 
                 if st.button("🔍 Run Menu Audit", use_container_width=True):
                     if api_key:
@@ -407,7 +434,7 @@ with right_col:
                 if st.session_state.internal_report:
                     st.success(st.session_state.internal_report)
             except Exception as e:
-                st.error(f"Error: {str(e)}")
+                st.error(f"Error reading file: {str(e)}")
         else:
             st.markdown("*Waiting for file...*")
 
