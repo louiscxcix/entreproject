@@ -214,9 +214,7 @@ def create_pdf(report_text):
 
 @st.cache_data(ttl=600)
 def fetch_external_intelligence(api_key):
-    # FALLBACK STRATEGY: Use internal knowledge to simulate live data
-    # This prevents the "Unknown field" and "Taking too long" errors by avoiding the buggy tool call
-    
+    # FIXED: Direct generation ONLY. No tools to hang on.
     current_time = datetime.now().strftime("%Y-%m-%d %H:%M")
     
     prompt = f"""
@@ -254,17 +252,7 @@ def fetch_external_intelligence(api_key):
         
         return response.text, score
     except Exception as e:
-        # FAILSAVE: If API fails, return a static fallback so the app DOES NOT HANG
-        fallback_report = f"""
-        **⚠️ OFFLINE MODE (API Error)**
-        
-        - **Radar**: ☁️ Typical Seasonal Weather | 🚇 Moderate Traffic
-        - **Impact**: Standard weekday footfall expected.
-        - **Action**: Focus on lunch turnover.
-        
-        *(Debug: {str(e)})*
-        """
-        return fallback_report, 50
+        return f"Error: {str(e)}", 0
 
 def analyze_internal_data(api_key, df):
     # 1. PYTHON-SIDE CALCULATION (The "Real Data" Guarantee)
@@ -375,6 +363,7 @@ def ask_executive_chat(api_key, question):
     DATA CONTEXT:
     [EXTERNAL]: {st.session_state.external_report}
     [INTERNAL]: {st.session_state.internal_report}
+    [STRATEGY]: {st.session_state.analysis_result}
     
     USER QUESTION: "{question}"
     
