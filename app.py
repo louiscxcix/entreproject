@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import google.generativeai as genai
 import time
-import random
 from datetime import datetime
+import random
+from fpdf import FPDF
 
-# --- 1. Page Config ---
+# --- 1. Page Configuration ---
 st.set_page_config(
     page_title="BarnaInsights: Pikio Taco",
     page_icon="🌮",
@@ -13,143 +14,130 @@ st.set_page_config(
     initial_sidebar_state="collapsed"
 )
 
-# --- 2. THEME & CSS ---
+# --- 2. MODERN UI THEME (CSS) ---
 st.markdown("""
     <style>
-    /* GLOBAL SETTINGS */
+    /* 1. BACKGROUND & FONTS */
     .stApp {
-        background-color: #053371;
+        background-color: #0f172a; /* Modern Slate-900 Dark Blue */
+        font-family: 'Inter', sans-serif;
     }
     
-    /* --- INTEGRATED TOP BAR --- */
+    h1, h2, h3, h4, p, label, span, div {
+        color: #f8fafc; /* Slate-50 Text */
+    }
+
+    /* 2. HEADER BANNER (Glassmorphism) */
+    .header-card {
+        background: rgba(255, 255, 255, 0.05);
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.1);
+        border-radius: 16px;
+        padding: 2rem;
+        margin-bottom: 2rem;
+        text-align: center;
+    }
+    
+    /* 3. CARDS (Left/Right Boxes) - Clean White/Silver Look */
+    div[data-testid="stVerticalBlockBorderWrapper"] {
+        background-color: #f8fafc !important; /* Bright Silver/White */
+        border: none !important;
+        border-radius: 16px;
+        box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+        padding: 2rem !important;
+    }
+    
+    /* Force Text inside Cards to be Dark Slate for contrast */
+    div[data-testid="stVerticalBlockBorderWrapper"] h3,
+    div[data-testid="stVerticalBlockBorderWrapper"] p,
+    div[data-testid="stVerticalBlockBorderWrapper"] div,
+    div[data-testid="stVerticalBlockBorderWrapper"] span,
+    div[data-testid="stVerticalBlockBorderWrapper"] label {
+        color: #1e293b !important; /* Slate-800 */
+    }
+    
+    /* 4. BUTTONS (Modern Flat Design) */
+    div.stButton > button {
+        background-color: #e2e8f0 !important; /* Slate-200 */
+        color: #0f172a !important; /* Dark Blue Text */
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px !important;
+        font-weight: 600 !important;
+        padding: 0.5rem 1rem !important;
+        transition: all 0.2s ease-in-out;
+    }
+    div.stButton > button:hover {
+        background-color: #cbd5e1 !important; /* Slate-300 */
+        border-color: #94a3b8 !important;
+        transform: translateY(-1px);
+    }
+    
+    /* Primary Action Button (Generate Strategy) */
+    div.row-widget.stButton > button[kind="primary"] {
+        background-color: #3b82f6 !important; /* Blue-500 */
+        color: white !important;
+        border: none !important;
+    }
+    div.row-widget.stButton > button[kind="primary"]:hover {
+        background-color: #2563eb !important; /* Blue-600 */
+    }
+
+    /* 5. INPUT FIELDS */
+    .stTextInput input, .stFileUploader button {
+        background-color: #ffffff !important;
+        color: #1e293b !important;
+        border: 1px solid #cbd5e1 !important;
+        border-radius: 8px;
+    }
+
+    /* 6. DIVIDER */
+    .vertical-divider {
+        border-left: 1px solid rgba(255, 255, 255, 0.2);
+        height: 100%;
+        min-height: 400px;
+        margin: 0 auto;
+    }
+    
+    /* Hide Streamlit Elements */
+    div[data-testid="stDecoration"] { visibility: hidden; }
+    
+    /* Top Bar Styling - AGGRESSIVE OVERRIDE */
     header[data-testid="stHeader"] {
-        background-color: #053371 !important;
-        border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+        background-color: #0f172a !important;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
     }
-    
-    /* Force icons (Hamburger, Deploy, Github) to be BRIGHT SILVER/WHITE */
-    header[data-testid="stHeader"] button, 
-    header[data-testid="stHeader"] svg, 
-    header[data-testid="stHeader"] a,
-    div[data-testid="stToolbar"] button,
-    div[data-testid="stToolbar"] svg,
-    button[kind="header"] {
-        color: #e5e7eb !important;
-        fill: #e5e7eb !important;
+    header[data-testid="stHeader"] * {
+        color: #e2e8f0 !important; /* Silver/White Icons */
+        fill: #e2e8f0 !important;
     }
     
     /* Sidebar Toggle Button */
-    section[data-testid="stSidebar"] button,
+    section[data-testid="stSidebar"] button, 
     div[data-testid="collapsedControl"] button,
     div[data-testid="collapsedControl"] svg {
-        color: #e5e7eb !important;
-        fill: #e5e7eb !important;
+        color: #e2e8f0 !important;
+        fill: #e2e8f0 !important;
     }
     
-    div[data-testid="stDecoration"] { visibility: hidden; }
-
-    /* HEADER BANNER STYLE */
-    .header-banner {
-        background-color: #022c5e;
-        padding: 2rem;
-        border-radius: 12px;
-        margin-bottom: 2rem;
-        border-left: 6px solid #3b82f6;
-        box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.2);
-    }
-    
-    /* Global Text */
-    h1, h2, h3, h4, p, span, div, label {
-        color: #ffffff;
-    }
-    
-    /* SIDEBAR */
-    section[data-testid="stSidebar"] {
-        background-color: #042451;
-        border-right: 1px solid #4b5563;
-    }
-    
-    /* SILVER BOXES */
-    div[data-testid="stVerticalBlockBorderWrapper"] {
-        background: linear-gradient(135deg, #f3f4f6 0%, #d1d5db 100%);
-        border: 2px solid #9ca3af !important;
-        border-radius: 16px;
-        box-shadow: 0 6px 12px -2px rgba(0, 0, 0, 0.2);
-        padding: 1.5rem;
-    }
-    
-    /* FORCE DARK TEXT INSIDE SILVER BOXES */
-    div[data-testid="stVerticalBlockBorderWrapper"] * {
-        color: #1f2937 !important;
-    }
-    div[data-testid="stVerticalBlockBorderWrapper"] .stAlert * {
-        color: inherit !important;
-    }
-
-    /* INPUT FIELDS */
-    .stTextInput input, .stFileUploader button {
-        background-color: #ffffff !important;
-        color: #1f2937 !important;
-        border: 1px solid #d1d5db;
-    }
-    
-    /* BUTTONS - AGGRESSIVE OVERRIDE FOR BLACK TEXT */
-    div.stButton > button {
-        background: linear-gradient(to bottom, #ffffff, #e5e7eb) !important;
-        color: #000000 !important;
-        font-weight: 800 !important;
-        border: 1px solid #9ca3af !important;
-        border-radius: 8px !important;
-        transition: all 0.2s;
-        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-    }
-    div.stButton > button p {
-        color: #000000 !important;
-    }
-    div.stButton > button:hover {
-        transform: translateY(-2px);
-        box-shadow: 0 4px 6px rgba(0,0,0,0.2);
-        border-color: #ffffff !important;
-        color: #000000 !important;
-    }
-    div.stButton > button:hover p { color: #000000 !important; }
-    div.stButton > button:active, div.stButton > button:focus {
-        color: #000000 !important;
-        border-color: #9ca3af !important;
-        background: #d1d5db !important;
-    }
-    div.stButton > button:active p, div.stButton > button:focus p { color: #000000 !important; }
-    
-    /* CHAT BUBBLES */
-    .stChatMessage {
-        background-color: rgba(255, 255, 255, 0.1);
-        border: 1px solid rgba(255, 255, 255, 0.2);
+    /* TABS Styling */
+    button[data-baseweb="tab"] {
         color: white !important;
+        font-weight: 600;
     }
-    
-    /* VERTICAL DIVIDER */
-    .vertical-divider {
-        border-left: 2px solid #9ca3af;
-        height: 100%;
-        min-height: 400px;
-        margin: auto;
-        opacity: 0.7;
+    button[data-baseweb="tab"][aria-selected="true"] {
+        background-color: rgba(255,255,255,0.1) !important;
+        border-radius: 8px 8px 0 0;
     }
-    
-    .block-container { padding-top: 1rem; padding-bottom: 5rem; }
     </style>
 """, unsafe_allow_html=True)
 
-# --- 3. HARDCODED DATABASE ---
+# --- 3. DATABASE (Pikio Taco) ---
 RESTAURANT_PROFILE = {
     "name": "Pikio Taco",
     "address": "Carrer de Còrsega, 376, L'Eixample",
     "neighborhood": "L'Eixample",
     "cuisine": "Mexican / Taqueria",
-    "price_range": "€10–20",
     "rating": "4.5",
-    "vibe": "Snug taqueria, cool vibe",
-    "services": ["Dine-in", "Takeaway", "Delivery"],
     "menu_items": """
     TACOS (3.90€/unit):
     - Carnitas: Pork confit Quiroga style, onion, coriander, radish.
@@ -169,7 +157,7 @@ RESTAURANT_PROFILE = {
     """
 }
 
-# --- 4. SESSION STATE ---
+# --- 4. STATE MANAGEMENT ---
 if 'external_report' not in st.session_state: st.session_state.external_report = ""
 if 'internal_report' not in st.session_state: st.session_state.internal_report = ""
 if 'analysis_result' not in st.session_state: st.session_state.analysis_result = ""
@@ -178,40 +166,50 @@ if 'opp_score' not in st.session_state: st.session_state.opp_score = 0
 
 # --- 5. SIDEBAR ---
 with st.sidebar:
-    st.image("https://cdn-icons-png.flaticon.com/512/3268/3268897.png", width=60)
-    st.title("📍 Active Profile")
-    st.markdown("---")
-    st.subheader(f"🌮 {RESTAURANT_PROFILE['name']}")
-    st.caption(RESTAURANT_PROFILE['address'])
-    col_a, col_b = st.columns(2)
-    with col_a: st.metric("Rating", RESTAURANT_PROFILE['rating'])
-    with col_b: st.caption(f"**Zone:**\n{RESTAURANT_PROFILE['neighborhood']}")
+    st.header("⚙️ Configuration")
+    api_key = st.text_input("Gemini API Key", type="password")
+    st.divider()
+    st.subheader("📍 Profile")
+    st.info(f"**{RESTAURANT_PROFILE['name']}**\n\n{RESTAURANT_PROFILE['address']}")
+    with st.expander("Show Menu Data"):
+        st.caption(RESTAURANT_PROFILE["menu_items"])
+
+# --- 6. LOGIC FUNCTIONS ---
+
+# PDF Generator Function
+def create_pdf(report_text):
+    class PDF(FPDF):
+        def header(self):
+            self.set_font('Arial', 'B', 15)
+            self.cell(0, 10, f'Strategic Report: {RESTAURANT_PROFILE["name"]}', 0, 1, 'C')
+            self.ln(10)
+            
+        def footer(self):
+            self.set_y(-15)
+            self.set_font('Arial', 'I', 8)
+            self.cell(0, 10, f'Page {self.page_no()}', 0, 0, 'C')
+
+    pdf = PDF()
+    pdf.add_page()
+    pdf.set_font("Arial", size=12)
     
-    with st.expander("📖 View Menu Data"):
-        st.text(RESTAURANT_PROFILE["menu_items"])
-    st.markdown("---")
-    api_key = st.text_input("🔑 Gemini API Key", type="password")
-    if not api_key: st.warning("Enter Key to Start")
+    # Clean text: FPDF has trouble with unicode/emojis. We replace them or encode to latin-1
+    clean_text = report_text.encode('latin-1', 'replace').decode('latin-1')
+    
+    pdf.multi_cell(0, 10, txt=clean_text)
+    return pdf.output(dest='S').encode('latin-1')
 
-# --- 6. CORE LOGIC ---
-
-# Cache External Data Scan for 10 minutes (600 seconds)
-@st.cache_data(ttl=600, show_spinner=False)
+@st.cache_data(ttl=600)
 def fetch_external_intelligence(api_key):
-    # Simulated Dynamic Data elements that change when cache expires
-    current_time = datetime.now().strftime("%H:%M")
-    traffic_load = random.randint(75, 98)
-    search_vol = random.randint(200, 500)
-    
+    # Simulated Live Data
+    traffic_load = random.randint(70, 95)
     prompt = f"""
-    ROLE: Intelligence Officer for {RESTAURANT_PROFILE['name']} in Barcelona.
+    ROLE: Intelligence Officer for {RESTAURANT_PROFILE['name']} (Barcelona).
     MENU: {RESTAURANT_PROFILE['menu_items']}
-    
-    LIVE DATA FEED (Updated {current_time}):
+    LIVE FEED:
     - EVENTS: Heavy Rain tonight. Corporate event Casa Fuster (20:00).
     - COMPETITORS: "La Taqueria" fully booked.
-    - TRAFFIC: Còrsega St congestion is at {traffic_load}%. 
-    - TRENDS: {search_vol} local searches for "Comfort food delivery" in last hour.
+    - TRAFFIC: Còrsega St congestion {traffic_load}%.
     
     TASK: 
     1. Calculate an 'Opportunity Score' (0-100) for tonight based on this live feed. Just the number.
@@ -222,196 +220,215 @@ def fetch_external_intelligence(api_key):
        - **Impact**: Why it matters (e.g., "Rain + Traffic {traffic_load}% = **High Delivery Demand**").
        - **Action**: One quick recommendation.
     """
-    
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         response = model.generate_content(prompt)
-        # Return tuple (Report Text, Simulated Score based on random traffic)
-        return response.text, traffic_load 
-    except Exception as e:
-        return f"Error: {e}", 0
+        # Parse logic for score (simple heuristic for demo)
+        score = traffic_load 
+        return response.text, score
+    except: return "Error fetching data.", 0
 
 def analyze_internal_data(api_key, df):
-    if not api_key: return "Missing API Key"
     csv_text = df.to_csv(index=False)
     prompt = f"""
     ROLE: Data Analyst for {RESTAURANT_PROFILE['name']}.
     MENU: {RESTAURANT_PROFILE['menu_items']}
-    INPUT DATA: {csv_text[:15000]}
-    
-    TASK: Perform a 'Deep Dive Menu Audit'.
-    1. Identify 'Star Performers' and explain WHY (margin/volume).
-    2. Identify 'Dead Weight' and suggest if we should kill it or promo it.
-    3. Analyze Peak Times vs Staffing needs.
+    INPUT: {csv_text[:15000]}
+    TASK: Menu Audit (Max 150 words).
+    1. 🏆 **Star Performers**: Identify top items (margin/volume).
+    2. 📉 **Dead Weight**: Identify low performers.
+    3. ⏰ **Peak Times**: Staffing impact.
     Provide detailed, reasoned insights.
     """
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
-        with st.spinner("🔍 Auditing records..."):
-            response = model.generate_content(prompt)
-            return response.text
-    except Exception as e:
-        return f"Error: {e}"
+        response = model.generate_content(prompt)
+        return response.text
+    except: return "Error analyzing data."
 
-def run_strategic_analysis(api_key, external_data, internal_data):
-    if not api_key: return "Missing API Key"
+def run_strategic_analysis(api_key):
     prompt = f"""
-    ACT AS: Strategic Consultant for {RESTAURANT_PROFILE['name']}.
+    ACT AS: Senior Strategic Consultant for {RESTAURANT_PROFILE['name']}.
     MENU: {RESTAURANT_PROFILE['menu_items']}
-    CONTEXT 1 (External): {external_data}
-    CONTEXT 2 (Internal): {internal_data}
+    CONTEXT 1 (External): {st.session_state.external_report}
+    CONTEXT 2 (Internal): {st.session_state.internal_report}
     
-    TASK: 4-point Decision Plan.
-    CONSTRAINT: Max 200 words total.
-    FORMAT: Use emojis and **Bold** for the core decision.
-    1. 💰 **Money Move**: Revenue strategy.
-    2. 🛡️ **Shield**: Operational defense.
-    3. 🌮 **Menu Pivot**: Item focus.
-    4. 📢 **Marketing Hook**: Exact social caption.
-    CRITICAL: Cite specific menu items (e.g. "Promote Carnitas"). Provide specific execution steps.
+    TASK: Generate a 'Strategic Business Report' (Max 250 words).
+    FORMAT:
+    1. 📊 **Executive Summary**: 1 sentence synthesis of the situation.
+    2. 💰 **Revenue Opportunity**: Specific menu push based on trends + margin.
+    3. 🛡️ **Operational Defense**: Staffing/Inventory adjustment based on risks.
+    4. 📢 **Marketing Strategy**: Social hook and vibe.
     """
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
-        with st.spinner("🚀 Generating Strategy..."):
-            response = model.generate_content(prompt)
-            return response.text
-    except Exception as e:
-        return f"Error: {e}"
+        response = model.generate_content(prompt)
+        return response.text
+    except: return "Error generating strategy."
 
 def ask_executive_chat(api_key, question):
-    if not api_key: return "Please enter API Key."
     prompt = f"""
-    YOU ARE: Ops Director for {RESTAURANT_PROFILE['name']}.
-    DATA: {st.session_state.analysis_result}
+    YOU ARE: The Senior Operations Director for {RESTAURANT_PROFILE['name']}.
+    Your goal is to answer the user's specific question by SYNTHESIZING internal and external data.
+
+    DATA CONTEXT:
+    [EXTERNAL RADAR]: {st.session_state.external_report}
+    [INTERNAL AUDIT]: {st.session_state.internal_report}
+    [STRATEGIC PLAN]: {st.session_state.analysis_result}
+    
     USER QUESTION: "{question}"
-    TASK: Concise, evidence-based answer.
+    
+    MANDATORY RESPONSE GUIDELINES:
+    1. Answer strictly based on the provided data context.
+    2. CROSS-REFERENCE: Connect external events (e.g., Rain) to internal metrics (e.g., Delivery Sales).
+    3. CITE EVIDENCE: "Because [External Fact] and [Internal Fact], I advise..."
+    4. Keep it concise (<100 words).
     """
     try:
         genai.configure(api_key=api_key)
         model = genai.GenerativeModel('gemini-2.0-flash')
         return model.generate_content(prompt).text
-    except Exception as e:
-        return f"Error: {e}"
+    except: return "Error."
 
-# --- 7. MAIN UI LAYOUT ---
+# --- 7. MAIN LAYOUT ---
 
-# HEADER SECTION
+# HEADER
 st.markdown(f"""
-<div class="header-banner">
-    <h1 style="margin:0; padding-bottom:10px;">🌮 BarnaInsights: {RESTAURANT_PROFILE['name']}</h1>
-    <p style="font-size: 1.1rem; color: #cbd5e1; margin:0;">Real-time Intelligence for {RESTAURANT_PROFILE['address']}</p>
+<div class="header-card">
+    <h1 style="margin:0; font-weight:800; font-size: 2.5rem; letter-spacing: -1px;">
+        🌮 BarnaInsights
+    </h1>
+    <p style="margin:0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.8;">
+        Real-time Intelligence for <b>{RESTAURANT_PROFILE['name']}</b>
+    </p>
 </div>
 """, unsafe_allow_html=True)
 
-# SPLIT LAYOUT (3 Columns: Left | Divider | Right)
-col_left, col_sep, col_right = st.columns([12, 1, 12])
+# MAIN COLUMNS
+left_col, mid_col, right_col = st.columns([1, 0.1, 1])
 
-# === LEFT BOX: EXTERNAL ===
-with col_left:
+# --- LEFT COLUMN ---
+with left_col:
     with st.container(border=True):
         st.markdown("### 🌍 External Radar")
-        st.caption("City Events, Weather, Competitors")
+        st.caption("Barcelona City Sensors (Weather, Events, Traffic)")
         
-        # When button is clicked, we fetch. 
-        # Caching logic inside function prevents API spam if clicked frequently.
-        if st.button("🔄 Scan City Data", use_container_width=True):
+        if st.button("🔄 Scan Live Signals", use_container_width=True):
             if api_key:
-                with st.spinner("Scanning city sensors..."):
+                with st.spinner("Connecting to City API..."):
                     report, score = fetch_external_intelligence(api_key)
                     st.session_state.external_report = report
                     st.session_state.opp_score = score
-            else:
-                st.error("Please enter API Key")
-        
+            else: st.error("Add API Key in Sidebar")
+            
         st.markdown("---")
         
         if st.session_state.external_report:
-            # Visual: Opportunity Score
-            st.markdown(f"**Business Opportunity Score:**")
-            st.progress(st.session_state.opp_score / 100)
-            st.caption(f"Score: {st.session_state.opp_score}/100 (Live Traffic: {st.session_state.opp_score}%)")
-            st.markdown("---")
-            st.markdown(st.session_state.external_report)
+            # Score Card
+            c1, c2 = st.columns([1,3])
+            with c1: 
+                st.metric("Opp. Score", f"{st.session_state.opp_score}/100")
+            with c2:
+                st.progress(st.session_state.opp_score / 100)
+                st.caption("Based on real-time demand signals")
+            
+            st.info(st.session_state.external_report)
         else:
-            st.info("System Ready. Click Scan.")
+            st.markdown("*Waiting for scan...*")
 
-# === VISUAL DIVIDER ===
-with col_sep:
+# --- DIVIDER ---
+with mid_col:
     st.markdown('<div class="vertical-divider"></div>', unsafe_allow_html=True)
 
-# === RIGHT BOX: INTERNAL ===
-with col_right:
+# --- RIGHT COLUMN ---
+with right_col:
     with st.container(border=True):
         st.markdown("### 📊 Internal Audit")
-        st.caption("Sales Logs, POS Data, Inventory")
+        st.caption("Upload POS Data (CSV/Excel)")
         
-        uploaded_file = st.file_uploader("Upload Excel/CSV", type=['csv', 'xlsx'])
+        uploaded_file = st.file_uploader("Drop Sales File Here", type=['csv', 'xlsx'], label_visibility="collapsed")
         
         if uploaded_file:
             try:
                 if uploaded_file.name.endswith('.csv'): df = pd.read_csv(uploaded_file)
                 else: df = pd.read_excel(uploaded_file)
                 
-                # Visual: Key Metrics
-                total_rev = df['Total Revenue'].sum()
-                orders = df['Qty Sold'].sum()
+                # Mini Metrics
+                rev = df['Total Revenue'].sum()
+                c1, c2 = st.columns(2)
+                c1.metric("Revenue", f"€{rev:,.0f}")
+                c2.metric("Orders", len(df))
                 
-                m1, m2 = st.columns(2)
-                m1.metric("Total Revenue", f"€{total_rev:,.2f}")
-                m2.metric("Total Orders", orders)
+                if st.button("🔍 Run Menu Audit", use_container_width=True):
+                    if api_key:
+                        with st.spinner("Analyzing margins..."):
+                            rep = analyze_internal_data(api_key, df)
+                            st.session_state.internal_report = rep
+                    else: st.error("Add API Key")
                 
-                if st.button("🔍 Scan Internal Data", use_container_width=True):
-                    report = analyze_internal_data(api_key, df)
-                    st.session_state.internal_report = report
-                
-                # Visual: Simple Chart
+                st.markdown("---")
                 if st.session_state.internal_report:
-                    st.markdown("---")
-                    st.caption("📈 Top 5 Best Sellers (Qty)")
-                    top_items = df.groupby('Item Name')['Qty Sold'].sum().sort_values(ascending=False).head(5)
-                    st.bar_chart(top_items, color="#3b82f6")
-                    st.markdown("---")
-                    st.markdown(st.session_state.internal_report)
-            except:
-                st.error("Invalid file format")
+                    st.success(st.session_state.internal_report)
+            except: st.error("Bad file format")
         else:
-            st.markdown("*Upload data to uncover Top Sellers.*")
+            st.markdown("*Waiting for file...*")
 
-# === MERGE STRATEGY ===
-st.write("") 
-_, col_center, _ = st.columns([1, 2, 1])
-with col_center:
-    ready = st.session_state.external_report and st.session_state.internal_report and api_key
-    if st.button("⚡ GENERATE UNIFIED STRATEGY", type="primary", disabled=not ready, use_container_width=True):
-        result = run_strategic_analysis(api_key, st.session_state.external_report, st.session_state.internal_report)
-        st.session_state.analysis_result = result
+# --- ACTION SECTION ---
+st.write("")
+st.write("")
+_, center, _ = st.columns([1, 2, 1])
+with center:
+    ready = st.session_state.external_report and st.session_state.internal_report
+    if st.button("✨ GENERATE UNIFIED STRATEGY", type="primary", disabled=not ready, use_container_width=True):
+        with st.spinner("Synthesizing Intelligence..."):
+            res = run_strategic_analysis(api_key)
+            st.session_state.analysis_result = res
 
-# === RESULTS ===
+# --- RESULTS ---
 if st.session_state.analysis_result:
-    st.write("")
-    with st.container(border=True):
-        st.subheader("🚀 Strategic Action Plan")
-        st.markdown(st.session_state.analysis_result)
-
-    # === EXECUTIVE CHAT ===
-    st.write("")
-    st.markdown("### 💬 Executive Chat")
-    chat_container = st.container(height=400, border=True)
-    with chat_container:
-        for msg in st.session_state.chat_history:
-            with st.chat_message(msg["role"]):
-                st.markdown(msg["content"])
-                
-    if q := st.chat_input("Ask Ops Director (e.g., 'How do I handle the delivery surge?')"):
-        st.session_state.chat_history.append({"role": "user", "content": q})
+    st.divider()
+    
+    # OUTPUT DIVISION: Strategic Report & Decision Tool
+    tab1, tab2 = st.tabs(["📄 Strategic Report", "🤖 Decision Consultant"])
+    
+    # TAB 1: REPORT
+    with tab1:
+        st.markdown(f"""
+        <div style="background-color:rgba(255,255,255,0.1); padding:25px; border-radius:10px; border-left: 5px solid #3b82f6;">
+            {st.session_state.analysis_result}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # PDF DOWNLOAD BUTTON
+        st.write("")
+        pdf_bytes = create_pdf(st.session_state.analysis_result)
+        st.download_button(
+            label="📥 Download Strategy as PDF",
+            data=pdf_bytes,
+            file_name=f"Pikio_Strategy_{datetime.now().strftime('%Y%m%d')}.pdf",
+            mime="application/pdf",
+        )
+    
+    # TAB 2: CHATBOT
+    with tab2:
+        st.markdown("##### 💬 Ask the Consultant")
+        st.caption("Expert advice based on your real-time data intersection.")
+        
+        chat_container = st.container(height=300)
         with chat_container:
-            with st.chat_message("user"): st.markdown(q)
-            with st.chat_message("assistant"):
-                with st.spinner("Thinking..."):
-                    ans = ask_executive_chat(api_key, q)
-                    st.markdown(ans)
-        st.session_state.chat_history.append({"role": "assistant", "content": ans})
-        st.rerun()
+            for msg in st.session_state.chat_history:
+                st.chat_message(msg["role"]).write(msg["content"])
+        
+        if q := st.chat_input("E.g. 'Should I lower prices for the rainy night?'"):
+            st.session_state.chat_history.append({"role": "user", "content": q})
+            with chat_container:
+                st.chat_message("user").write(q)
+                with st.chat_message("assistant"):
+                    with st.spinner("Consulting data..."):
+                        ans = ask_executive_chat(api_key, q)
+                        st.write(ans)
+            st.session_state.chat_history.append({"role": "assistant", "content": ans})
+            st.rerun()
