@@ -508,6 +508,19 @@ with right_col:
         st.markdown("### 📊 Cost & Inventory Audit")
         st.caption("Upload POS Data (CSV/Excel)")
         
+        # Download Button for Example Data
+        try:
+            with open("data.xlsx", "rb") as f:
+                st.download_button(
+                    label="📄 Download Example Data (Demo)",
+                    data=f,
+                    file_name="data.xlsx",
+                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                    use_container_width=True
+                )
+        except FileNotFoundError:
+            pass # Hide button if file missing
+
         uploaded_file = st.file_uploader("Drop Sales File Here", type=['csv', 'xlsx'], label_visibility="collapsed")
         
         if uploaded_file:
