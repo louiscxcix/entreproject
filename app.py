@@ -181,8 +181,22 @@ if 'opp_score' not in st.session_state: st.session_state.opp_score = 0
 # --- 5. SIDEBAR ---
 with st.sidebar:
     st.header("⚙️ Configuration")
-    # HARDCODED API KEY FOR BETA TESTING
-    api_key = "AIzaSyBs576jalSxcZPVQV49lvISU-JQffWWHk4"
+    
+    # --- SECRETS MANAGEMENT ---
+    # Try to load API Key from Streamlit Secrets
+    try:
+        if "GEMINI_API_KEY" in st.secrets:
+            api_key = st.secrets["GEMINI_API_KEY"]
+            st.success("✅ Key loaded from Secrets")
+        else:
+            # Fallback for local testing if secrets.toml not found
+            api_key = st.text_input("Gemini API Key", type="password")
+            if not api_key:
+                st.warning("⚠️ Key required to run.")
+    except FileNotFoundError:
+        # Fallback if secrets file doesn't exist at all
+        api_key = st.text_input("Gemini API Key", type="password")
+
     st.divider()
     
     # Updated to use local icon.png
