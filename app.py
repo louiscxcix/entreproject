@@ -35,7 +35,7 @@ st.markdown("""
         backdrop-filter: blur(10px);
         border: 1px solid rgba(255, 255, 255, 0.1);
         border-radius: 16px;
-        padding: 2rem;
+        padding: 1.5rem; /* Reduced padding */
         margin-bottom: 2rem;
         text-align: center;
     }
@@ -419,15 +419,7 @@ def run_strategic_analysis(api_key):
         
         return web_data, pdf_content
     except Exception as e: 
-        # FAILSAFE RETURN: Return a fallback dictionary so the app doesn't crash
-        fallback_data = {
-            "executive_summary": f"Analysis generation incomplete: {str(e)}",
-            "revenue": "N/A",
-            "ops": "N/A",
-            "marketing": "N/A",
-            "swot": {}
-        }
-        return fallback_data, f"Error generating full report: {str(e)}"
+        return None, f"Error: {e}"
 
 def ask_executive_chat(api_key, question):
     prompt = f"""
@@ -461,17 +453,17 @@ def get_img_as_base64(file):
 # Try loading local icon, fallback to emoji if missing
 icon_b64 = get_img_as_base64("icon.png")
 if icon_b64:
-    icon_html = f'<img src="data:image/png;base64,{icon_b64}" style="width: 80px; margin-bottom: 15px;">'
+    icon_html = f'<img src="data:image/png;base64,{icon_b64}" style="width: 80px; margin-bottom: 5px;">'
 else:
     icon_html = '<div style="font-size: 60px; margin-bottom: 10px;">🌮</div>'
 
 st.markdown(f"""
 <div class="header-card">
     {icon_html}
-    <h1 style="margin:0; font-weight:800; font-size: 2.5rem; letter-spacing: -1px;">
+    <h1 style="margin:0; font-weight:800; font-size: 2.2rem; letter-spacing: -1px;">
         Chiaro AI
     </h1>
-    <p style="margin:0.5rem 0 0 0; font-size: 1.1rem; opacity: 0.8;">
+    <p style="margin:0.2rem 0 0 0; font-size: 1rem; opacity: 0.8;">
         Real-time Intelligence for <b>{RESTAURANT_PROFILE['name']}</b>
     </p>
 </div>
