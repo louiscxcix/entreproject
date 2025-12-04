@@ -419,7 +419,15 @@ def run_strategic_analysis(api_key):
         
         return web_data, pdf_content
     except Exception as e: 
-        return None, f"Error: {e}"
+        # FAILSAFE RETURN: Return a fallback dictionary so the app doesn't crash
+        fallback_data = {
+            "executive_summary": f"Analysis generation incomplete: {str(e)}",
+            "revenue": "N/A",
+            "ops": "N/A",
+            "marketing": "N/A",
+            "swot": {}
+        }
+        return fallback_data, f"Error generating full report: {str(e)}"
 
 def ask_executive_chat(api_key, question):
     prompt = f"""
